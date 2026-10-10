@@ -1,0 +1,7 @@
+**/_build/
+**/deps/
+**/*.midgard/
+*.beam
+*.ez
+erl_crash.dump
+/.impeccable/review/

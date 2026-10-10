@@ -1,0 +1,1 @@
+[entry: HelloWorker, target: :libbeam]
