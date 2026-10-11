@@ -1,0 +1,6 @@
+{application, erlang_worker,
+ [{description, "Standalone Erlang Packer fixture"},
+  {vsn, "0.1.0"},
+  {modules, []},
+  {registered, []},
+  {applications, [kernel, stdlib]}]}.

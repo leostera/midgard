@@ -1,6 +1,6 @@
 # Midgard — Elixir Workers artifact toolchain
 
-Midgard scaffolds and compiles Elixir workers into **versioned, inspectable BEAM artifacts** for a future libbeam host adapter. It does not deploy them or execute them in libbeam. The separate [libbeam runtime](https://github.com/leostera/otp/tree/main/libbeam) can now run selected Erlang BEAMs in private Isolates, but **does not support the Elixir/OTP profile used by this example**. An artifact passing Midgard's static checks is not proof of runtime admission, isolation or production security.
+Midgard scaffolds and compiles Elixir workers into **versioned, inspectable BEAM artifacts** for a future libbeam host adapter. It does not deploy them or execute them in libbeam. The separate [libbeam runtime](https://github.com/leostera/libbeam/tree/main/libbeam) can now run selected Erlang BEAMs in private Isolates, but **does not support the Elixir/OTP profile used by this example**. An artifact passing Midgard's static checks is not proof of runtime admission, isolation or production security.
 
 ## Try the toolchain (ordinary Elixir/OTP)
 

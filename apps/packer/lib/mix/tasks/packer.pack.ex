@@ -3,36 +3,48 @@ defmodule Mix.Tasks.Packer.Pack do
 
   @shortdoc "Compile and package exact-name BEAMs into <app>.midgard/"
   @moduledoc """
-  Compiles the current Mix project and writes a versioned, inspectable BEAM
-  directory. Set `packer: [entry: MyWorker]` in `mix.exs`, or pass `--entry`.
-  Use `--output DIR` for a different destination, `--function` for another
-  binary arity-one export, and `--protocol` for its wire contract. This is
-  trusted local build tooling; it does not run an Isolate or deploy anything.
+  Compile the current Mix project (`packer: [entry: MyWorker]` in mix.exs),
+  or a single-app rebar3 project with `--project DIR`. The rebar3 entry module,
+  binary arity-one `--function` and versioned `--protocol` are required;
+  `--rebar3 PATH` selects a local executable. `--output DIR` overrides the
+  default output. This trusted-local command never deploys or invokes libbeam.
   """
 
   @impl true
   def run(args) do
     {options, positional, invalid} =
       OptionParser.parse(args,
-        strict: [output: :string, entry: :string, function: :string, protocol: :string]
+        strict: [
+          output: :string,
+          entry: :string,
+          function: :string,
+          protocol: :string,
+          project: :string,
+          rebar3: :string
+        ]
       )
 
     if positional != [] or invalid != [],
       do:
         Mix.raise(
-          "Usage: mix packer.pack [--entry Elixir.MyWorker] [--function NAME] [--protocol ID] [--output DIR]"
+          "Usage: mix packer.pack [--project REBAR3_DIR] --entry MODULE [--function NAME] [--protocol ID] [--rebar3 PATH] [--output DIR]"
         )
 
-    Mix.Task.run("compile")
+    unless options[:project], do: Mix.Task.run("compile")
     entry = options[:entry] || (Mix.Project.config()[:packer] || [])[:entry]
 
-    with {:ok, output} <-
-           Packer.pack(
-             entry: entry,
-             function: options[:function] || "__midgard_call__",
-             protocol: options[:protocol] || "midgard.bytes.v1",
-             output: options[:output] || "#{Mix.Project.config()[:app]}.midgard"
-           ),
+    pack_options =
+      [
+        entry: entry,
+        project: options[:project],
+        function: options[:function],
+        protocol: options[:protocol],
+        rebar3: options[:rebar3],
+        output: options[:output]
+      ]
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+
+    with {:ok, output} <- Packer.pack(pack_options),
          {:ok, report} <- Packer.Profile.report(output) do
       Mix.shell().info("Packed #{output}\n#{Packer.Profile.summary(report)}")
     else

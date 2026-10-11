@@ -1,0 +1,11 @@
+{
+  "name": "midgard-todo-browser-check",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:browser": "node test/browser_flow.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.56.1"
+  }
+}

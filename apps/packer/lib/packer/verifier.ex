@@ -5,7 +5,7 @@ defmodule Packer.Verifier do
   @max_beam 2_000_000
   @max_modules 512
   @max_total 32_000_000
-  @module_pattern ~r/\AElixir\.[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*\z/
+  @module_pattern ~r/\A(?:Elixir\.[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*|[a-z][A-Za-z0-9_@]*)\z/
 
   @manifest_keys ~w(application compiler dependencies entrypoint format format_version modules required_capabilities target)
   @module_keys ~w(name owner path sha256 size)

@@ -132,14 +132,14 @@ defmodule Packer.Profile do
   defp opcode(instruction), do: instruction
 
   defp reject_on_load(path) do
-    case :beam_lib.chunks(String.to_charlist(path), [:attributes]) do
-      {:ok, {_module, [attributes: attrs]}} ->
-        if Keyword.has_key?(attrs, :on_load),
-          do: {:error, "on_load module initialization is not supported: #{path}"},
-          else: :ok
-
-      _ ->
-        {:error, "could not inspect BEAM attributes: #{path}"}
+    with {:ok, {_module, [attributes: attrs]}} <-
+           :beam_lib.chunks(String.to_charlist(path), [:attributes]),
+         {:ok, instructions} <- opcodes(path) do
+      if Keyword.has_key?(attrs, :on_load) or :on_load in instructions,
+        do: {:error, "on_load module initialization is not supported: #{path}"},
+        else: :ok
+    else
+      _ -> {:error, "could not inspect BEAM initialization: #{path}"}
     end
   end
 

@@ -1,7 +1,9 @@
+!/examples/todo/
 **/_build/
 **/deps/
+**/node_modules/
 **/*.midgard/
 *.beam
 *.ez
 erl_crash.dump
-/.impeccable/review/
+/.impeccable/
