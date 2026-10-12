@@ -196,6 +196,42 @@ defmodule PackerTest do
     assert note =~ "libbeam execution still NOT VERIFIED"
   end
 
+  test "native imports and local closures are conditional support, not static blockers", %{
+    root: root
+  } do
+    {entry, beam} =
+      compile_fixture("""
+      def __midgard_call__(bytes) do
+        fun = fn -> bytes end
+        {fun, self(), make_ref(), is_function(fun), Integer.to_string(42)}
+      end
+      """)
+
+    path = Path.join(root, "conditional.midgard")
+
+    assert {:ok, ^path} =
+             Packer.Artifact.build(
+               path,
+               "fixture",
+               entry,
+               [%{name: entry, owner: "fixture", bytes: beam}],
+               []
+             )
+
+    assert {:ok, report} = Packer.Profile.report(path)
+    assert report["profile_revision"] == "libbeam:b023b770"
+    assert report["known_unsupported_current_core"] == []
+    refute Enum.any?(report["unresolved_imports"], &String.contains?(&1, "erlang:self/0"))
+    refute Enum.any?(report["unresolved_imports"], &String.contains?(&1, "erlang:make_ref/0"))
+
+    assert Enum.any?(
+             report["conditionally_supported_operations"],
+             &String.contains?(&1, "make_fun3")
+           )
+
+    assert report["execution"] == "not_verified"
+  end
+
   test "current-core profile flags known unsupported map bytecode, not execution", %{root: root} do
     {entry, beam} = compile_fixture("def __midgard_call__(bytes), do: %{body: bytes}")
     path = Path.join(root, "maps.midgard")

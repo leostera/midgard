@@ -7,7 +7,30 @@ defmodule Packer.Profile do
   @host_modules ~w(file os prim_file gen_tcp gen_udp inet ssl httpc rpc net_kernel code erl_eval erl_scan erl_parse)a ++
                   [File, System, Port, IO, Node, Mix, RPC]
   @unavailable_modules ~w(ets persistent_term application)a ++ [Code]
-  @unavailable_ops ~w(get_map_elements put_map_assoc put_map_exact has_map_fields is_map new_map make_fun3 make_fun2 call_fun call_fun2 is_pid is_port is_reference)a
+  # Snapshot of the actual bounded profile, not generic opcode presence as authority.
+  @profile_revision "libbeam:b023b770"
+  @unavailable_ops ~w(get_map_elements put_map_assoc put_map_exact has_map_fields is_map new_map make_fun2 is_port)a
+  @conditional_ops ~w(make_fun3 call_fun call_fun2 is_pid is_reference bs_start_match3 bs_match bs_create_bin send loop_rec loop_rec_end wait wait_timeout)a
+  @native_imports MapSet.new([
+                    {:erlang, :get_module_info, 1},
+                    {:erlang, :get_module_info, 2},
+                    {:erlang, :+, 2},
+                    {:erlang, :integer_to_binary, 1},
+                    {:erlang, :self, 0},
+                    {:erlang, :make_ref, 0},
+                    {:erlang, :is_function, 1},
+                    {:erlang, :is_function, 2},
+                    {:erlang, :spawn, 3},
+                    {:erlang, :register, 2},
+                    {:erlang, :error, 1},
+                    {:erlang, :error, 3},
+                    {:erlang, :spawn_opt, 4},
+                    {:erlang, :demonitor, 2},
+                    {:erlang, :exit, 2},
+                    # Protected compiler-produced preloaded wrappers, not BIF aliases.
+                    {:erlang, :spawn, 1},
+                    {:erlang, :spawn_monitor, 1}
+                  ])
 
   def reject_host_imports(dir, manifest) do
     Enum.reduce_while(manifest["modules"], :ok, fn module, :ok ->
@@ -36,6 +59,9 @@ defmodule Packer.Profile do
        %{
          "execution" => "not_verified",
          "contract" => "provisional-isolate-v1",
+         "profile_revision" => @profile_revision,
+         "conditionally_supported_operations" =>
+           evidence.conditional |> Enum.uniq() |> Enum.sort(),
          "known_unsupported_current_core" => evidence.unsupported |> Enum.uniq() |> Enum.sort(),
          "unresolved_imports" => evidence.unresolved |> Enum.uniq() |> Enum.sort()
        }}
@@ -66,36 +92,45 @@ defmodule Packer.Profile do
   defp gather(dir, manifest) do
     included = MapSet.new(manifest["modules"], & &1["name"])
 
-    Enum.reduce_while(manifest["modules"], {:ok, %{unsupported: [], unresolved: []}}, fn module,
-                                                                                         {:ok,
-                                                                                          acc} ->
-      path = Path.join(dir, module["path"])
+    Enum.reduce_while(
+      manifest["modules"],
+      {:ok, %{unsupported: [], unresolved: [], conditional: []}},
+      fn module, {:ok, acc} ->
+        path = Path.join(dir, module["path"])
 
-      with {:ok, entries} <- imports(path),
-           {:ok, instructions} <- opcodes(path) do
-        unsupported =
-          for op <- instructions, op in @unavailable_ops, do: "#{module["name"]}: opcode #{op}"
+        with {:ok, entries} <- imports(path),
+             {:ok, instructions} <- opcodes(path) do
+          unsupported =
+            for op <- instructions, op in @unavailable_ops, do: "#{module["name"]}: opcode #{op}"
 
-        unsupported =
-          unsupported ++
+          unsupported =
+            unsupported ++
+              for {from, function, arity} <- entries,
+                  from in @unavailable_modules,
+                  do: "#{module["name"]}: #{from}:#{function}/#{arity}"
+
+          unresolved =
             for {from, function, arity} <- entries,
-                from in @unavailable_modules,
+                not MapSet.member?(included, Atom.to_string(from)) and
+                  not MapSet.member?(@native_imports, {from, function, arity}) and
+                  from not in @unavailable_modules,
                 do: "#{module["name"]}: #{from}:#{function}/#{arity}"
 
-        unresolved =
-          for {from, function, arity} <- entries,
-              not MapSet.member?(included, Atom.to_string(from)) and
-                not (from == :erlang and function == :get_module_info and arity in [1, 2]) and
-                from not in @unavailable_modules,
-              do: "#{module["name"]}: #{from}:#{function}/#{arity}"
+          conditional =
+            for op <- instructions, op in @conditional_ops, do: "#{module["name"]}: opcode #{op}"
 
-        {:cont,
-         {:ok,
-          %{unsupported: unsupported ++ acc.unsupported, unresolved: unresolved ++ acc.unresolved}}}
-      else
-        error -> {:halt, error}
+          {:cont,
+           {:ok,
+            %{
+              unsupported: unsupported ++ acc.unsupported,
+              unresolved: unresolved ++ acc.unresolved,
+              conditional: conditional ++ acc.conditional
+            }}}
+        else
+          error -> {:halt, error}
+        end
       end
-    end)
+    )
   end
 
   defp imports(path) do
