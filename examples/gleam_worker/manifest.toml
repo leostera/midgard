@@ -1,0 +1,14 @@
+# Do not manually edit this file, it is managed by Gleam.
+#
+# This file locks the dependency versions used, to make your build
+# deterministic and to prevent unexpected versions from being included
+# in your application.
+#
+# You should check this file into your source control repository.
+
+packages = [
+  { name = "amber_helper", version = "0.2.0", build_tools = ["gleam"], requirements = [], source = "local", path = "vendor/amber_helper" },
+]
+
+[requirements]
+amber_helper = { path = "vendor/amber_helper" }

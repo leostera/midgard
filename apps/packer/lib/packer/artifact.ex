@@ -109,7 +109,7 @@ defmodule Packer.Artifact do
     {:ok,
      %{
        "format" => "midgard.beam",
-       "format_version" => 1,
+       "format_version" => if(options[:gleam_version], do: 2, else: 1),
        "application" => app,
        "entrypoint" => %{
          "module" => entry,
@@ -117,10 +117,7 @@ defmodule Packer.Artifact do
          "arity" => 1,
          "protocol" => Keyword.get(options, :protocol, "midgard.bytes.v1")
        },
-       "compiler" => %{
-         "otp_release" => :erlang.system_info(:otp_release) |> to_string(),
-         "elixir_version" => System.version()
-       },
+       "compiler" => compiler(options),
        "target" => %{
          "runtime" => "libbeam",
          "contract" => "provisional-isolate-v1",
@@ -130,6 +127,15 @@ defmodule Packer.Artifact do
        "modules" => records,
        "required_capabilities" => []
      }}
+  end
+
+  defp compiler(options) do
+    otp = :erlang.system_info(:otp_release) |> to_string()
+
+    case options[:gleam_version] do
+      nil -> %{"otp_release" => otp, "elixir_version" => System.version()}
+      version -> %{"otp_release" => otp, "gleam_version" => version}
+    end
   end
 
   defp prepare_destination(output) do

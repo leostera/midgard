@@ -47,7 +47,7 @@ defmodule Packer.Verifier do
     compiler = m["compiler"]
 
     if is_map(m) and sorted_keys(m) == @manifest_keys and m["format"] == "midgard.beam" and
-         m["format_version"] == 1 and identifier?(m["application"]) and
+         valid_compiler?(m["format_version"], compiler) and identifier?(m["application"]) and
          is_list(modules) and length(modules) in 1..@max_modules and
          Enum.all?(modules, &(is_map(&1) and is_binary(&1["name"]))) and
          is_list(deps) and is_map(entry) and is_map(target) and is_map(compiler) and
@@ -63,14 +63,24 @@ defmodule Packer.Verifier do
            "runtime" => "libbeam",
            "contract" => "provisional-isolate-v1",
            "execution" => "not_verified"
-         } and sorted_keys(compiler) == ~w(elixir_version otp_release) and
-         is_binary(compiler["otp_release"]) and is_binary(compiler["elixir_version"]) and
-         valid_dependencies?(deps) do
+         } and valid_dependencies?(deps) do
       :ok
     else
       {:error, "invalid artifact schema or unsupported capabilities"}
     end
   end
+
+  defp valid_compiler?(1, %{"otp_release" => otp, "elixir_version" => elixir} = fields),
+    do:
+      sorted_keys(fields) == ~w(elixir_version otp_release) and is_binary(otp) and
+        is_binary(elixir)
+
+  defp valid_compiler?(2, %{"otp_release" => otp, "gleam_version" => gleam} = fields),
+    do:
+      sorted_keys(fields) == ~w(gleam_version otp_release) and is_binary(otp) and
+        is_binary(gleam) and byte_size(gleam) in 1..64
+
+  defp valid_compiler?(_, _), do: false
 
   defp valid_dependencies?(deps) do
     Enum.all?(deps, fn dep ->

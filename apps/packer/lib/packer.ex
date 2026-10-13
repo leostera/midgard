@@ -5,13 +5,15 @@ defmodule Packer do
   inspection loads modules into a serving VM or executes an Isolate.
   """
 
-  @doc "Builds a versioned artifact from the current Mix app, or from `:project` (one rebar3 app)."
+  @doc "Builds an artifact from Mix, a single rebar3 app, or a Gleam Erlang-target project."
   def pack(opts \\ [])
 
   def pack(opts) when is_list(opts) do
-    if Keyword.has_key?(opts, :project),
-      do: Packer.Rebar3.pack(opts),
-      else: pack_mix(opts)
+    cond do
+      opts[:gleam] == true -> Packer.Gleam.pack(opts)
+      Keyword.has_key?(opts, :project) -> Packer.Rebar3.pack(opts)
+      true -> pack_mix(opts)
+    end
   end
 
   def pack(_), do: {:error, "expected keyword pack options"}
