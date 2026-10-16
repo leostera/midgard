@@ -24,6 +24,16 @@ defmodule MidgardPlatformRouterTest do
     {:ok, root: root}
   end
 
+  test "container dashboard does not advertise a working create path" do
+    System.put_env("MIDGARD_CONTAINER_HTTP", "1")
+    on_exit(fn -> System.delete_env("MIDGARD_CONTAINER_HTTP") end)
+
+    html = response(:get, "/").resp_body
+    assert html =~ "Create worker · Not yet available"
+    refute html =~ "href='/workers/new'"
+    assert html =~ "external compiler and durable deployment recovery"
+  end
+
   test "the local dashboard creates a worker and escapes source in the editor" do
     assert response(:get, "/").status == 200
     assert response(:get, "/workers/new").resp_body =~ "Create worker"

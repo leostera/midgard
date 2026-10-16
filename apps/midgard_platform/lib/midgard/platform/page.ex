@@ -13,8 +13,17 @@ defmodule Midgard.Platform.Page do
     visible = Enum.slice(matching, (page - 1) * @page_size, @page_size)
 
     layout("Workers", [
-      "<section class='page-head'><div><h1>Workers</h1><p>Your local worker inventory</p></div>",
-      "<a class='button primary' href='/workers/new'>Create worker</a></section>",
+      "<section class='page-head'><div><h1>Workers</h1><p>",
+      if(System.get_env("MIDGARD_CONTAINER_HTTP") == "1",
+        do: "Public worker inventory",
+        else: "Your local worker inventory"
+      ),
+      "</p></div>",
+      if(System.get_env("MIDGARD_CONTAINER_HTTP") == "1",
+        do:
+          "<span class='button secondary' aria-disabled='true'>Create worker · Not yet available</span></section>",
+        else: "<a class='button primary' href='/workers/new'>Create worker</a></section>"
+      ),
       "<section class='registry' aria-label='Worker inventory'>",
       "<div class='registry-toolbar'><form class='search-form' action='/' method='get' role='search'>",
       "<label class='sr-only' for='worker-search'>Search workers</label>",
@@ -41,7 +50,12 @@ defmodule Midgard.Platform.Page do
         else: table(visible, filters, page, pages, length(matching))
       ),
       "</section>",
-      "<p class='footnote'>Invocation counts are per worker across redeployments. They include valid requests routed to a live worker, including failures. Local development only.</p>"
+      if(System.get_env("MIDGARD_CONTAINER_HTTP") == "1",
+        do:
+          "<p class='footnote'>Public creation is paused until the external compiler and durable deployment recovery are connected.</p>",
+        else:
+          "<p class='footnote'>Invocation counts are per worker across redeployments. They include valid requests routed to a live worker, including failures. Local development only.</p>"
+      )
     ])
   end
 
@@ -292,7 +306,11 @@ defmodule Midgard.Platform.Page do
         })
 
   defp empty do
-    "<div class='empty-state'><h2>No workers yet</h2><p>Create your first worker to write source, deploy to an Isolate, and call its local route.</p><a href='/workers/new'>Create your first worker</a></div>"
+    if System.get_env("MIDGARD_CONTAINER_HTTP") == "1" do
+      "<div class='empty-state'><h2>No public workers yet</h2><p>Creation is paused until verified shipments can be safely admitted and recovered after restarts.</p></div>"
+    else
+      "<div class='empty-state'><h2>No workers yet</h2><p>Create your first worker to write source, deploy to an Isolate, and call its local route.</p><a href='/workers/new'>Create your first worker</a></div>"
+    end
   end
 
   defp crumb(label),
