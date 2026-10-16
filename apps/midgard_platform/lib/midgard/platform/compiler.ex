@@ -20,8 +20,8 @@ defmodule Midgard.Platform.Compiler do
          {:ok, uid} <- identity("-u"),
          {:ok, gid} <- identity("-g"),
          :ok <- available_destination(destination) do
-      build_root =
-        Path.join(System.tmp_dir!(), "midgard-compiler-#{System.unique_integer([:positive])}")
+      nonce = Base.encode16(:crypto.strong_rand_bytes(12), case: :lower)
+      build_root = Path.join(System.tmp_dir!(), "midgard-compiler-#{nonce}")
 
       workspace = Path.join(build_root, "workspace")
       output = Path.join(build_root, "output")
@@ -40,7 +40,7 @@ defmodule Midgard.Platform.Compiler do
           File.cp!(Path.join(@sdk, file), Path.join(workspace, "sdk/#{file}"))
         end
 
-        name = "midgard-compile-#{System.unique_integer([:positive])}"
+        name = "midgard-compile-#{nonce}"
         module = "Elixir." <> Macro.camelize(slug)
         args = docker_args(name, workspace, output, uid, gid, image_id, slug, module)
 
@@ -112,6 +112,8 @@ defmodule Midgard.Platform.Compiler do
       "run",
       "--rm",
       "--pull=never",
+      "--log-driver",
+      "none",
       "--name",
       name,
       "--network",
@@ -138,6 +140,10 @@ defmodule Midgard.Platform.Compiler do
       "--mount",
       "type=bind,src=#{output},dst=/output",
       image_id,
+      "timeout",
+      "-k",
+      "5s",
+      "80s",
       "elixir",
       "/workspace/compile.exs",
       slug,
