@@ -5,8 +5,8 @@ if System.get_env("MIDGARD_COMPILER_IMAGE") == "1" do
 
     @tag native: true, timeout: 180_000
     test "a saved Elixir worker gets a live URL; failed edits keep the last deployment" do
-      root =
-        Path.join(System.tmp_dir!(), "midgard-flow-test-#{System.unique_integer([:positive])}")
+      nonce = Base.encode16(:crypto.strong_rand_bytes(8), case: :lower)
+      root = Path.join(System.tmp_dir!(), "midgard-flow-test-#{nonce}")
 
       File.mkdir_p!(root)
       original = Application.get_env(:midgard_platform, :workspace)
@@ -31,10 +31,40 @@ if System.get_env("MIDGARD_COMPILER_IMAGE") == "1" do
       assert {:ok, <<2, 200::16, 24::16, "Hello from hello_local!\n">>} =
                Midgard.Platform.call(first.id, get)
 
-      assert {:error, message} = Publisher.deploy("hello_local", source <> "\ninvalid elixir !")
+      updated =
+        String.replace(
+          source,
+          "def handle_request(_request), do: {404, \"Not found\\n\"}",
+          "def handle_request(%Midgard.Request{method: \"POST\", path: \"/echo\", body: body}), do: {200, body}\n\n  def handle_request(_request), do: {404, \"Not found\\n\"}"
+        )
+
+      assert updated != source
+      assert {:ok, second} = Publisher.deploy("hello_local", updated)
+      refute first.id == second.id
+      assert {:error, :not_deployed} = Midgard.Platform.call(first.id, get)
+
+      assert {:ok, bytes} =
+               Midgard.Protocol.request(%Midgard.Request{
+                 method: "POST",
+                 path: "/echo",
+                 body: <<0, 5, 255>>
+               })
+
+      assert {:ok, result} = Midgard.Platform.call(second.id, bytes)
+      assert {:ok, {200, <<0, 5, 255>>}} = Midgard.Protocol.decode_response(result)
+
+      http =
+        Plug.Test.conn(:post, "http://127.0.0.1/run/hello_local/echo", <<0, 5, 255>>)
+        |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
+        |> Midgard.Platform.Router.call(Midgard.Platform.Router.init([]))
+
+      assert http.status == 200
+      assert http.resp_body == <<0, 5, 255>>
+
+      assert {:error, message} = Publisher.deploy("hello_local", updated <> "\ninvalid elixir !")
       assert message =~ "compiler failed"
       assert {:ok, %{record: %{live: %{id: id}, busy: false}}} = Workspace.read("hello_local")
-      assert id == first.id
+      assert id == second.id
       assert {:ok, _reply} = Midgard.Platform.call(id, get)
 
       # The registry is restarted after native Port death. No URL may claim
