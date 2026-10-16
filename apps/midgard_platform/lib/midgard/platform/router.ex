@@ -66,6 +66,37 @@ defmodule Midgard.Platform.Router do
     upload_shipment(conn, slug)
   end
 
+  get "/api/deployments/state" do
+    gateway = System.get_env("MIDGARD_INTERNAL_UPLOAD_KEY")
+
+    if System.get_env("MIDGARD_CONTAINER_HTTP") == "1" and is_binary(gateway) and
+         byte_size(gateway) >= 32 and
+         upload_token?(get_req_header(conn, "x-midgard-internal-upload"), gateway) do
+      state =
+        Workspace.list()
+        |> Enum.filter(& &1.live)
+        |> Enum.map(fn %{slug: slug, live: live} ->
+          case Midgard.Platform.Deployments.lookup(live.id) do
+            {:ok, %{digest: digest}} when digest == live.digest ->
+              %{slug: slug, digest: digest}
+
+            _ ->
+              :stale
+          end
+        end)
+
+      if Enum.any?(state, &(&1 == :stale)) do
+        send_resp(conn, 503, "native deployment unavailable\n")
+      else
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(200, state |> :json.encode() |> IO.iodata_to_binary())
+      end
+    else
+      send_resp(conn, 403, "Forbidden\n")
+    end
+  end
+
   get "/assets/app.css" do
     path = Application.app_dir(:midgard_platform, "priv/static/app.css")
     conn |> put_resp_content_type("text/css") |> send_resp(200, File.read!(path))

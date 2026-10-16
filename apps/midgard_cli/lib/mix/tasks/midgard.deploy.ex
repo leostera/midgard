@@ -56,9 +56,19 @@ defmodule Mix.Tasks.Midgard.Deploy do
 
       route_prefix = "#{URI.to_string(endpoint)}#{result["path"]}"
       Mix.shell().info("Route prefix: #{route_prefix}")
-      Mix.shell().info("Generated worker example: GET #{route_prefix}hello")
+      Mix.shell().info(call_hint(upload.manifest, route_prefix))
     else
       {:error, reason} -> Mix.raise("Midgard deployment failed: #{inspect(reason)}")
+    end
+  end
+
+  defp call_hint(manifest_bytes, route_prefix) do
+    case :json.decode(manifest_bytes) do
+      %{"entrypoint" => %{"protocol" => "raw.bytes.v1"}} ->
+        "Raw-byte example: curl -X POST --data-binary 'hello' '#{route_prefix}'"
+
+      _ ->
+        "Append a path implemented by your worker (generated workers use GET #{route_prefix}hello)"
     end
   end
 

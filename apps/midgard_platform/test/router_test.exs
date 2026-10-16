@@ -233,6 +233,44 @@ defmodule MidgardPlatformRouterTest do
            |> Map.get(:status) == 413
 
     assert [%{invocations: 1}] = Workspace.list()
+
+    old_container = System.get_env("MIDGARD_CONTAINER_HTTP")
+    old_key = System.get_env("MIDGARD_INTERNAL_UPLOAD_KEY")
+    key = Base.encode16(:crypto.strong_rand_bytes(32), case: :lower)
+    System.put_env("MIDGARD_CONTAINER_HTTP", "1")
+    System.put_env("MIDGARD_INTERNAL_UPLOAD_KEY", key)
+
+    on_exit(fn ->
+      if old_container,
+        do: System.put_env("MIDGARD_CONTAINER_HTTP", old_container),
+        else: System.delete_env("MIDGARD_CONTAINER_HTTP")
+
+      if old_key,
+        do: System.put_env("MIDGARD_INTERNAL_UPLOAD_KEY", old_key),
+        else: System.delete_env("MIDGARD_INTERNAL_UPLOAD_KEY")
+    end)
+
+    state_url = "http://127.0.0.1/api/deployments/state"
+
+    assert Plug.Test.conn(:get, state_url) |> Router.call(Router.init([])) |> Map.get(:status) ==
+             403
+
+    state =
+      Plug.Test.conn(:get, state_url)
+      |> Plug.Conn.put_req_header("x-midgard-internal-upload", "Bearer " <> key)
+      |> Router.call(Router.init([]))
+
+    assert state.status == 200
+    assert [%{"slug" => "raw_echo", "digest" => ^digest}] = :json.decode(state.resp_body)
+
+    assert :ok = Midgard.Platform.stop("raw_echo")
+
+    stale =
+      Plug.Test.conn(:get, state_url)
+      |> Plug.Conn.put_req_header("x-midgard-internal-upload", "Bearer " <> key)
+      |> Router.call(Router.init([]))
+
+    assert stale.status == 503
   end
 
   test "search, status filters, sorting and pagination work without JavaScript" do

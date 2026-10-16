@@ -35,6 +35,7 @@ function runtimeHarness() {
 	let starts = 0;
 	let destroys = 0;
 	let timeouts = 0;
+	const admitted = new Map<string, string>();
 	const container = {
 		running: false,
 		images: { server: "midgard-runtime@sha256:example" },
@@ -42,17 +43,23 @@ function runtimeHarness() {
 			expect(options.instance).toBe("standard-2");
 			expect(options.env.MIDGARD_INTERNAL_UPLOAD_KEY.length).toBe(64);
 			this.running = true;
+			admitted.clear();
 			starts++;
 		},
-		async destroy() { destroys++; this.running = false; },
+		async destroy() { destroys++; this.running = false; admitted.clear(); },
 		async setInactivityTimeout(value: number) { expect(value).toBe(600_000); timeouts++; },
 		getTcpPort(port: number) {
 			expect(port).toBe(4000);
 			return { fetch: async (request: Request) => {
 				requests.push(request);
 				const url = new URL(request.url);
+				if (url.pathname === "/api/deployments/state") {
+					if (!request.headers.get("x-midgard-internal-upload")?.startsWith("Bearer ")) return new Response(null, { status: 403 });
+					return Response.json([...admitted].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([slug, digest]) => ({ slug, digest })));
+				}
 				if (url.pathname.startsWith("/api/deployments/")) {
 					const route = request.headers.get("x-midgard-public-route");
+					if (route) admitted.set(route, "a".repeat(64));
 					return Response.json({ slug: route, digest: "a".repeat(64), modules: 342, path: `/run/${route}/` }, { status: 201 });
 				}
 				return new Response(url.pathname === "/" ? "<h1>Workers</h1>" : "Hello!", { status: 200 });
@@ -76,7 +83,7 @@ function runtimeHarness() {
 		storage: { sql, transactionSync: (fn: () => unknown) => db.transaction(fn)() },
 		blockConcurrencyWhile: (fn: () => Promise<unknown>) => fn(),
 	} as unknown as DurableObjectState;
-	return { ctx, container, requests, starts: () => starts, destroys: () => destroys, timeouts: () => timeouts };
+	return { ctx, container, requests, admitted, starts: () => starts, destroys: () => destroys, timeouts: () => timeouts };
 }
 
 test("dashboard, guide and assets pass through the private Elixir service", async () => {
@@ -116,6 +123,32 @@ test("a DO restart renews the ten-minute idle period for a surviving container",
 	new NativeRuntime(ctx, env);
 	await Promise.resolve();
 	expect(timeouts()).toBe(1);
+});
+
+test("a DO restart reuses only the exact admitted digest set in a surviving Container", async () => {
+	const { ctx, container, admitted, requests, starts, destroys } = runtimeHarness();
+	const runtime = new NativeRuntime(ctx, env);
+	await runtime.fetch(new Request("https://midgard.leostera.dev/api/deployments/ready"));
+	const upload = await runtime.fetch(new Request("https://midgard.leostera.dev/api/deployments/hello", {
+		method: "POST", headers: { "content-type": "application/vnd.midgard.shipment.v1" }, body: new Uint8Array([0, 1]),
+	}));
+	const { slug } = await upload.json() as { slug: string };
+	expect(starts()).toBe(1);
+
+	const surviving = new NativeRuntime(ctx, env);
+	expect((await surviving.fetch(new Request("https://midgard.leostera.dev/"))).status).toBe(200);
+	expect(starts()).toBe(1);
+	expect(destroys()).toBe(0);
+	expect(requests.at(-2)?.url).toEndWith("/api/deployments/state");
+
+	// Missing or mismatched Isolates cannot be reported live after a DO eviction.
+	admitted.set(slug, "b".repeat(64));
+	const stale = new NativeRuntime(ctx, env);
+	expect((await stale.fetch(new Request("https://midgard.leostera.dev/"))).status).toBe(200);
+	expect(destroys()).toBe(1);
+	expect(starts()).toBe(2);
+	expect(admitted.get(slug)).toBe("a".repeat(64));
+	container.running = false;
 });
 
 test("anonymous uploads receive immutable routes and recover exact stored bytes", async () => {

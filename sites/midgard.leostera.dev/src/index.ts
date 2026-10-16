@@ -95,9 +95,18 @@ export class NativeRuntime extends DurableObject<Env> {
 	private async startAndRestore(): Promise<void> {
 		const container = this.ctx.container;
 		if (!container) throw new Error("Platform container binding is unavailable");
-		// A DO restart may leave the old BEAM service running. Never trust its
-		// in-memory handles or filesystem: recreate it from committed shipments.
-		if (container.running) await container.destroy();
+		const sql = this.ctx.storage.sql;
+		const saved = sql.exec<Saved>("SELECT slug, app, digest, size, checksum FROM shipments WHERE active = 1 ORDER BY rowid").toArray();
+		// A DO eviction must not discard healthy, already-admitted Isolates. The
+		// host proves the full live digest set; missing or stale handles still
+		// require a fresh Container and exact shipment re-admission.
+		if (container.running) {
+			if (await this.matchesRunningHost(saved)) {
+				console.log(JSON.stringify({ event: "restore_reused", count: saved.length }));
+				return;
+			}
+			await container.destroy();
+		}
 		container.start({
 			image: container.images.server,
 			instance: "standard-2",
@@ -108,10 +117,8 @@ export class NativeRuntime extends DurableObject<Env> {
 		const health = new Request(`${backend}/`, { headers: { host: "127.0.0.1:4000" } });
 		const ready = await this.portFetch(health, true);
 		if (ready.status !== 200) throw new Error("Elixir service did not start");
-		const sql = this.ctx.storage.sql;
 		sql.exec("DELETE FROM chunks WHERE slug IN (SELECT slug FROM shipments WHERE active = 0)");
 		sql.exec("DELETE FROM shipments WHERE active = 0");
-		const saved = this.ctx.storage.sql.exec<Saved>("SELECT slug, app, digest, size, checksum FROM shipments WHERE active = 1 ORDER BY rowid").toArray();
 		console.log(JSON.stringify({ event: "restore_start", count: saved.length }));
 		for (const shipment of saved) {
 			const bytes = await this.readShipment(shipment);
@@ -122,6 +129,27 @@ export class NativeRuntime extends DurableObject<Env> {
 				throw new Error(`Stored shipment was not re-admitted: ${shipment.slug}`);
 			}
 			console.log(JSON.stringify({ event: "restore_admitted", slug: shipment.slug }));
+		}
+	}
+
+	private async matchesRunningHost(saved: Saved[]): Promise<boolean> {
+		try {
+			const request = new Request(`${backend}/api/deployments/state`, {
+				headers: { host: "127.0.0.1:4000", "x-midgard-internal-upload": `Bearer ${this.gateway()}` },
+			});
+			const response = await this.portFetch(request, false);
+			if (response.status !== 200) return false;
+			const live: unknown = await response.json();
+			if (!Array.isArray(live) || live.length !== saved.length) return false;
+			const expected = [...saved].sort((a, b) => a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0);
+			return expected.every((shipment, index) => {
+				const row: unknown = live[index];
+				return typeof row === "object" && row !== null && "slug" in row && "digest" in row &&
+					row.slug === shipment.slug && row.digest === shipment.digest;
+			});
+		} catch (error) {
+			console.warn("Could not verify existing Container admissions", error);
+			return false;
 		}
 	}
 
