@@ -15,7 +15,10 @@ iex -S mix
 ```
 
 Open **http://127.0.0.1:4000**, click **Create worker**, enter a lowercase
-name, edit the starter source and click **Compile & deploy**. The source editor
+name and click **Create & deploy**. A starter is compiled and admitted before
+the new worker opens. Use **Compile & deploy** in the editor for later revisions.
+If initial compilation fails, the saved draft opens with an error so it can be
+retried. The source editor
 uses a locally bundled CodeMirror with Elixir highlighting; without JavaScript,
 the ordinary textarea remains usable. The page shows the live example URL,
 e.g. `http://127.0.0.1:4000/run/hello_world/hello/joe` (which responds

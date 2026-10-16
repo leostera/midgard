@@ -28,8 +28,7 @@ defmodule MidgardPlatformRouterTest do
     assert response(:get, "/").status == 200
     assert response(:get, "/workers/new").resp_body =~ "Create worker"
 
-    assert response(:post, "/workers", %{"csrf" => "test-token", "name" => "hello_local"}).status ==
-             303
+    assert :ok = Workspace.create("hello_local")
 
     assert {:ok, %{source: source}} = Workspace.read("hello_local")
     assert source =~ "defmodule HelloLocal do"
@@ -77,8 +76,7 @@ defmodule MidgardPlatformRouterTest do
     assert response(:post, "/workers", %{"csrf" => "test-token", "name" => "../attack"}).status ==
              422
 
-    assert response(:post, "/workers", %{"csrf" => "test-token", "name" => "worker"}).status ==
-             303
+    assert :ok = Workspace.create("worker")
 
     assert response(:post, "/workers/worker/deploy", %{"csrf" => "wrong", "source" => "x"}).status ==
              422

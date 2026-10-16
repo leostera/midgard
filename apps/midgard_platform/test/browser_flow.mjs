@@ -48,8 +48,9 @@ try {
   await page.screenshot({ path: join(review, "platform-empty-desktop.png"), fullPage: true });
   await page.getByRole("link", { name: "Create worker" }).first().click();
   await page.getByLabel("Worker name").fill("demo_worker");
-  await page.getByRole("button", { name: "Create worker" }).click();
+  await page.getByRole("button", { name: "Create & deploy" }).click({ timeout: 90_000 });
   assert.match(page.url(), /workers\/demo_worker/);
+  await page.getByText("Deployed worker", { exact: true }).waitFor({ timeout: 90_000 });
   assert.match(await page.locator("#source").inputValue(), /defmodule DemoWorker/);
   await page.locator(".cm-editor").waitFor();
   assert.equal(await page.locator("#source").isVisible(), false);
@@ -60,7 +61,7 @@ try {
   assert.match(await page.locator("#source").inputValue(), /# Edited in CodeMirror$/);
 
   await page.getByRole("button", { name: "Compile & deploy" }).click({ timeout: 90_000 });
-  await page.getByText("Live endpoint").waitFor({ timeout: 90_000 });
+  await page.getByText("Call this worker", { exact: true }).waitFor({ timeout: 90_000 });
   assert.equal(await (await fetch(`${origin}/run/demo_worker/hello`)).text(), "Hello from demo_worker!\n");
   assert.equal(await (await fetch(`${origin}/run/demo_worker/hello/joe`)).text(), "Hello, joe!\n");
   await page.goto(origin, { waitUntil: "networkidle" });

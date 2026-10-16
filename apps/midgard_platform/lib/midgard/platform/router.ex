@@ -25,7 +25,7 @@ defmodule Midgard.Platform.Router do
     with {:ok, fields, conn} <- form(conn),
          :ok <- authorized(fields),
          :ok <- Workspace.create(fields["name"]) do
-      redirect(conn, "/workers/#{fields["name"]}")
+      publish_new(conn, fields["name"])
     else
       {:error, reason, conn} -> html(conn, Page.new_worker(csrf(), reason), 422)
       {:error, reason} -> html(conn, Page.new_worker(csrf(), reason), 422)
@@ -143,6 +143,19 @@ defmodule Midgard.Platform.Router do
     end
 
     result
+  end
+
+  defp publish_new(conn, slug) do
+    case Workspace.read(slug) do
+      {:ok, %{source: source}} ->
+        case Publisher.deploy(slug, source) do
+          {:ok, _live} -> redirect(conn, "/workers/#{slug}")
+          {:error, reason} -> deploy_error(conn, slug, reason)
+        end
+
+      {:error, reason} ->
+        html(conn, Page.new_worker(csrf(), reason), 422)
+    end
   end
 
   defp deploy_error(conn, slug, reason) do

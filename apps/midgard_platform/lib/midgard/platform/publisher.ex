@@ -26,7 +26,13 @@ defmodule Midgard.Platform.Publisher do
 
     with {:ok, %{digest: digest, modules: count}} <- Compiler.compile(slug, source, destination),
          {:ok, ^digest} <- Midgard.Platform.deploy(id, destination, defer_denied_nif: true) do
-      live = %{id: id, digest: digest, modules: count, artifact: destination}
+      live = %{
+        id: id,
+        digest: digest,
+        modules: count,
+        artifact: destination,
+        deployed_at: DateTime.utc_now()
+      }
 
       case Workspace.finish_deploy(slug, {:ok, live}) do
         {:ok, previous} ->

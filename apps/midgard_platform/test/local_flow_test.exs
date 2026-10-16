@@ -26,6 +26,7 @@ if System.get_env("MIDGARD_COMPILER_IMAGE") == "1" do
       assert {:ok, %{source: source}} = Workspace.read("hello_local")
       assert {:ok, first} = Publisher.deploy("hello_local", source)
       assert first.modules > 300
+      assert %DateTime{} = first.deployed_at
       get = <<1, 3, 6::16, 0::16, 0, 0::16, "GET", "/hello">>
 
       assert {:ok, <<2, 200::16, 24::16, "Hello from hello_local!\n">>} =

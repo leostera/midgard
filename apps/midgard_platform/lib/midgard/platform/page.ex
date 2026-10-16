@@ -48,13 +48,13 @@ defmodule Midgard.Platform.Page do
   def new_worker(token, error \\ nil) do
     layout("Create worker", [
       crumb("New worker"),
-      "<section class='page-head detail-head'><div><h1>Create worker</h1><p>Name your worker, then edit its starter source before deploying.</p></div></section>",
+      "<section class='page-head detail-head'><div><h1>Create worker</h1><p>Name your worker. We’ll compile and deploy its starter before opening the details.</p></div></section>",
       error_notice(error, "Could not create worker."),
       "<form class='create-form' method='post' action='/workers'>",
       hidden_token(token),
       "<label for='name'>Worker name</label><input id='name' name='name' type='text' required autofocus maxlength='40' pattern='[a-z][a-z0-9_]*' placeholder='hello_world' autocomplete='off' aria-describedby='name-help'>",
       "<p id='name-help' class='field-help'>Lowercase letters, numbers and underscores. Starts with a letter.</p>",
-      "<div class='form-actions'><button class='button primary' type='submit'>Create worker</button><a class='button quiet' href='/'>Cancel</a></div></form>"
+      "<div class='form-actions'><button class='button primary' type='submit'>Create &amp; deploy</button><a class='button quiet' href='/'>Cancel</a></div></form>"
     ])
   end
 
@@ -79,10 +79,10 @@ defmodule Midgard.Platform.Page do
         "</h1><span class='badge #{if live, do: "live", else: "draft"}'>",
         status,
         "</span></div>",
-        "<p>Write <code>handle_request/1</code>, then compile and deploy to a libbeam Isolate.</p></div></section>",
+        "<p>Call the deployed worker or edit its source to publish a new revision.</p></div></section>",
         error_notice(error),
         if(live,
-          do: live_panel(address, live),
+          do: live_panel(address, live, record),
           else:
             "<div class='hint'>Not deployed yet. Edit the source below, then deploy to make the route callable.</div>"
         ),
@@ -302,22 +302,33 @@ defmodule Midgard.Platform.Page do
       "</span></nav>"
     ]
 
-  defp live_panel(address, live) do
+  defp live_panel(address, live, record) do
     [
-      "<section class='live-panel' aria-label='Live deployment'><div><div class='live-label'><span class='status-dot' aria-hidden='true'></span> Live endpoint</div>",
+      "<section class='live-panel' aria-label='Live deployment'><div class='call-details'><div class='live-label'><span class='status-dot' aria-hidden='true'></span> Deployed worker</div>",
+      "<h2>Call this worker</h2><p>GET <code>/hello/:name</code> replies with your name. Try joe, or replace it with your own.</p>",
       "<a class='endpoint' href='",
       safe(address),
       "' target='_blank' rel='noopener noreferrer'>",
       safe(address),
-      "</a>",
-      "<p>Try another name in place of joe, or call this URL with curl.</p></div>",
-      "<div class='deployment-meta'><span>",
+      "</a><div class='curl-example'><code>curl '",
+      safe(address),
+      "'</code></div></div>",
+      "<dl class='deployment-meta'><div><dt>Deployed</dt><dd>",
+      deployed_age(Map.get(live, :deployed_at)),
+      "</dd></div><div><dt>Invocations</dt><dd>",
+      count(Map.get(record, :invocations, 0)),
+      "</dd></div><div><dt>Modules</dt><dd>",
       Integer.to_string(live.modules),
-      " BEAMs</span><span>SHA ",
+      " BEAMs</dd></div><div><dt>Shipment</dt><dd><code>",
       safe(String.slice(live.digest, 0, 12)),
-      "</span></div></section>"
+      "</code></dd></div></dl></section>"
     ]
   end
+
+  defp deployed_age(%DateTime{} = value),
+    do: last_invoked(DateTime.to_unix(value, :millisecond))
+
+  defp deployed_age(_), do: "<span class='muted'>Unavailable</span>"
 
   defp error_notice(reason, title \\ "Couldn't deploy this change.")
   defp error_notice(nil, _title), do: ""

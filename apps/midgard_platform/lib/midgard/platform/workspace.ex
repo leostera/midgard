@@ -68,8 +68,18 @@ defmodule Midgard.Platform.Workspace do
   def handle_call({:read, slug}, _from, state) do
     if valid_slug?(slug) and Map.has_key?(state.workers, slug) do
       case File.read(source_path(state.root, slug)) do
-        {:ok, bytes} -> {:reply, {:ok, %{source: bytes, record: state.workers[slug]}}, state}
-        _ -> {:reply, {:error, :source_unavailable}, state}
+        {:ok, bytes} ->
+          traffic =
+            case Traffic.read(state.root, slug) do
+              {:ok, data} -> data
+              {:error, _} -> %{invocations: nil, last_invoked_at: nil}
+            end
+
+          record = Map.merge(state.workers[slug], traffic)
+          {:reply, {:ok, %{source: bytes, record: record}}, state}
+
+        _ ->
+          {:reply, {:error, :source_unavailable}, state}
       end
     else
       {:reply, {:error, :not_found}, state}
