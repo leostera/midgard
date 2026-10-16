@@ -5,6 +5,7 @@
 	"scripts": {
 		"dev": "cf dev",
 		"build": "cf build",
+		"test": "bun test",
 		"deploy": "cf deploy",
 		"typecheck": "cf workers types && tsc"
 	},
