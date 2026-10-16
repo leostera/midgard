@@ -7,7 +7,7 @@ here=$(cd -- "$(dirname -- "$0")" && pwd)
 root=$(cd -- "$here/../.." && pwd)
 : "${LIBBEAM_SOURCE:?Set LIBBEAM_SOURCE to a checkout of leostera/libbeam}"
 : "${ELIXIR_SOURCE:?Set ELIXIR_SOURCE to a checkout of elixir-lang/elixir}"
-libbeam_revision=a0fe630bb03763ec75ed0a8f09c92a4f1db3de74
+libbeam_revision=1db6feff2073b948169e1def265c884097a2e2a1
 elixir_revision=13299af2b91a6aff7e430f25849f586c02b3231f
 midgard_revision=$(git -C "$root" rev-parse --verify HEAD)
 

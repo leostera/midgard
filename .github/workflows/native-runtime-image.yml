@@ -13,7 +13,7 @@ jobs:
       - name: Fetch pinned libbeam and Elixir source
         run: |
           git clone --filter=blob:none --no-checkout https://github.com/leostera/libbeam.git /tmp/libbeam-source
-          git -C /tmp/libbeam-source fetch --depth 1 origin a0fe630bb03763ec75ed0a8f09c92a4f1db3de74
+          git -C /tmp/libbeam-source fetch --depth 1 origin 1db6feff2073b948169e1def265c884097a2e2a1
           git -C /tmp/libbeam-source checkout --detach FETCH_HEAD
           git clone --filter=blob:none --no-checkout https://github.com/elixir-lang/elixir.git /tmp/elixir-source
           git -C /tmp/elixir-source fetch --depth 1 origin 13299af2b91a6aff7e430f25849f586c02b3231f
