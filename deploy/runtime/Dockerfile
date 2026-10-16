@@ -5,9 +5,10 @@ FROM elixir@sha256:d170fadffd75b36146ff40b6e8d5cc881c59d136ae5a2c34a1b394ec33b6c
 COPY --from=bazel /usr/local/bin/bazel /usr/local/bin/bazel
 WORKDIR /build/libbeam
 COPY libbeam-source/ ./
-# Upstream's compact C style triggers GCC misleading-indentation warnings on
-# Linux; keep the warnings visible without changing native admission behavior.
-RUN bazel build --copt=-Wno-error=misleading-indentation //libbeam:libbeam //libbeam:core
+# GCC diagnoses style and signedness in upstream C more strictly than the
+# macOS build; retain warnings, without changing libbeam admission behavior.
+RUN bazel build --copt=-Wno-error=misleading-indentation \
+    --copt=-Wno-error=sign-compare //libbeam:libbeam //libbeam:core
 COPY midgard-source/apps/libbeam_elixir/native/libbeam_host.cpp /build/libbeam_host.cpp
 RUN c++ -std=c++17 -O2 -I/build/libbeam/libbeam/include \
     /build/libbeam_host.cpp bazel-bin/libbeam/liblibbeam.a \
