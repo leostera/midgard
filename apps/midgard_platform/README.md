@@ -35,7 +35,7 @@ the last working deployment online.
 as a non-root user in an immutable image built from tracked Elixir source commit
 `13299af2b91a6aff7e430f25849f586c02b3231f` atop a pinned OTP 28 base.
 The invocation has no network, a read-only filesystem, no capabilities, CPU/
-memory/PID limits, a bounded wall-clock deadline, and only source/SDK read-only
+memory/PID limits, a bounded wall-clock deadline and 64 KiB output cap, and only source/SDK read-only
 and fresh output mounts. An unavailable image or Docker error fails closed.
 Compile-time Elixir macros can execute *inside that container*. This is a
 trusted-local tool, **not** an adversarial multi-tenant compiler security

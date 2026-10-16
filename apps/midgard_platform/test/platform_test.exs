@@ -157,6 +157,32 @@ defmodule MidgardPlatformTest do
 
       refute File.exists?(marker)
     end
+
+    @tag native: true, timeout: 180_000
+    test "compiler output is bounded and a noisy build never publishes an artifact" do
+      root =
+        Path.join(
+          System.tmp_dir!(),
+          "midgard-compile-noise-#{System.unique_integer([:positive])}"
+        )
+
+      File.mkdir_p!(root)
+      on_exit(fn -> File.rm_rf!(root) end)
+      artifact = Path.join(root, "noisy.midgard")
+
+      source = """
+      defmodule Noisy do
+        IO.write(String.duplicate("x", 80_000))
+        use Midgard.Worker
+        def handle_request(_), do: {200, "ok"}
+      end
+      """
+
+      assert {:error, "compiler output exceeded 64 KiB"} =
+               Midgard.Platform.Compiler.compile("noisy", source, artifact)
+
+      refute File.exists?(artifact)
+    end
   end
 
   defp echo_shipment(body \\ "Bytes") do

@@ -7,6 +7,7 @@ defmodule Midgard.Platform.Compiler do
   @image "midgard-elixir-compiler:13299af"
   @source_commit "13299af2b91a6aff7e430f25849f586c02b3231f"
   @timeout 90_000
+  @max_log 65_536
   @max_source 65_536
   @sdk Path.expand("../../../../midgard/lib/midgard", __DIR__)
   @files ~w(request.ex protocol.ex worker.ex)
@@ -146,17 +147,46 @@ defmodule Midgard.Platform.Compiler do
   end
 
   defp run_docker(args, name) do
-    task = Task.async(fn -> System.cmd("docker", args, stderr_to_stdout: true) end)
+    docker = System.find_executable("docker")
 
-    result =
-      case Task.yield(task, @timeout) || Task.shutdown(task, :brutal_kill) do
-        {:ok, {output, 0}} -> {:ok, output}
-        {:ok, {output, _}} -> {:error, "compiler failed: #{String.slice(output, 0, 8_192)}"}
-        _ -> {:error, "compiler timed out after 90 seconds"}
-      end
+    port =
+      Port.open({:spawn_executable, docker}, [
+        :binary,
+        :exit_status,
+        :stderr_to_stdout,
+        args: args
+      ])
 
-    # The client may have died before Docker stopped the container; reclaim it.
-    System.cmd("docker", ["rm", "-f", name], stderr_to_stdout: true)
+    deadline = System.monotonic_time(:millisecond) + @timeout
+    result = collect(port, <<>>, deadline)
+
+    # Closing the client on timeout/output overflow does not guarantee that
+    # Docker stopped the container. The unique container name lets us reclaim it.
+    System.cmd(docker, ["rm", "-f", name], stderr_to_stdout: true)
     result
+  end
+
+  defp collect(port, log, deadline) do
+    remaining = max(deadline - System.monotonic_time(:millisecond), 0)
+
+    receive do
+      {^port, {:data, chunk}} ->
+        if byte_size(log) + byte_size(chunk) <= @max_log do
+          collect(port, log <> chunk, deadline)
+        else
+          Port.close(port)
+          {:error, "compiler output exceeded 64 KiB"}
+        end
+
+      {^port, {:exit_status, 0}} ->
+        {:ok, log}
+
+      {^port, {:exit_status, _}} ->
+        {:error, "compiler failed: #{log |> String.replace_invalid() |> String.slice(0, 8_192)}"}
+    after
+      remaining ->
+        Port.close(port)
+        {:error, "compiler timed out after 90 seconds"}
+    end
   end
 end
