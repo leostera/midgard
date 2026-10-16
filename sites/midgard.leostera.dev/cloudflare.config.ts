@@ -16,8 +16,23 @@ const nativeRuntime = defineContainer({
 	observability: { enabled: true, logs: { enabled: true } },
 });
 
+// One fresh offline VM per build. The image contains no Cloudflare credentials;
+// only shipment bytes may leave it, and it is destroyed after every job.
+const compilerJob = defineContainer({
+	name: "midgard-compiler-jobs",
+	schedulingPolicy: "durable-object",
+	images: {
+		compiler: {
+			reference:
+				"registry.cloudflare.com/0f436d2aabf1f872be90b8dd9d5715e6/midgard-compiler@sha256:a34996d9338f9cd37f32496f265ff94da3a52ca517bb0a6f80f5eb191706e677",
+		},
+	},
+	ssh: { enabled: false },
+	observability: { enabled: true, logs: { enabled: true } },
+});
+
 export default defineConfig({
-	containers: [nativeRuntime],
+	containers: [nativeRuntime, compilerJob],
 	worker: {
 		name: "midgard-leostera-dev",
 		compatibilityDate: "2026-09-25",
@@ -28,6 +43,7 @@ export default defineConfig({
 		},
 		exports: {
 			NativeRuntime: exports.durableObject({ storage: "sqlite", container: nativeRuntime }),
+			CompilerJob: exports.durableObject({ storage: "sqlite", container: compilerJob }),
 		},
 	},
 });

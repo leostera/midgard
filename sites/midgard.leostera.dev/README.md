@@ -18,9 +18,14 @@ inside it. An operator-only POST to `/_midgard/operator/native-probe`, with a
 private `STAGING_PROBE_TOKEN` Worker secret in an Authorization Bearer header,
 boots one fixed staging instance and checks a loopback HTTP 200 via `exec`.
 Never expose this token in browser code or commit it. Container inactivity
-shutdown is set to two minutes. This only proves container boot and an internal
-HTTP response; it does **not** prove uploaded source compilation, admission,
-or worker invocation. The public dashboard and its two assets are the only open pages; other
+shutdown is set to two minutes. This proves container boot and an internal
+HTTP response; it does **not** prove worker admission or invocation.
+
+A separate digest-pinned `CompilerJob` Container starts a fresh offline VM and
+destroys it after its job. The operator-only POST
+`/_midgard/operator/compiler-probe` compiles a fixed sample and checks its
+manifest. It does not accept public source or publish shipments; verified
+admission and durable persistence must be implemented before opening uploads. The public dashboard and its two assets are the only open pages; other
 unauthenticated paths return 503 (except invalid probe requests, which return
 404).
 

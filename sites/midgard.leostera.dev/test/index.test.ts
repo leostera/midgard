@@ -14,7 +14,16 @@ mock.module("cloudflare:workers", () => ({
 		ctx: unknown;
 		constructor(ctx: unknown) { this.ctx = ctx; }
 	},
-	exports: { NativeRuntime: nativeRuntime },
+	exports: {
+		NativeRuntime: nativeRuntime,
+		CompilerJob: {
+			newUniqueId: () => "unique-compiler-job",
+			get: (id: string) => {
+				expect(id).toBe("unique-compiler-job");
+				return { fetch: async () => Response.json({ compiled: true, modules: 12 }) };
+			},
+		},
+	},
 }));
 // Bun's Web Crypto lacks the Cloudflare-only timingSafeEqual extension.
 Object.defineProperty(crypto.subtle, "timingSafeEqual", {
@@ -100,6 +109,17 @@ test("native probe starts the pinned image offline and checks loopback HTTP", as
 	expect(timeout).toBe(120_000);
 	expect(response.status).toBe(200);
 	expect(await response.json()).toEqual({ running: true, httpStatus: "200", exitCode: 0 });
+});
+
+test("compiler probe requires the same operator token and a fresh job", async () => {
+	const url = "https://midgard.leostera.dev/_midgard/operator/compiler-probe";
+	expect((await worker.fetch(new Request(url, { method: "POST" }), env)).status).toBe(404);
+	const response = await worker.fetch(new Request(url, {
+		method: "POST",
+		headers: { authorization: "Bearer test-secret" },
+	}), env);
+	expect(response.status).toBe(200);
+	expect(await response.json()).toEqual({ compiled: true, modules: 12 });
 });
 
 test("operator-only probe returns a bounded status without forwarding public traffic", async () => {

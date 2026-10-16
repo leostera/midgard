@@ -1,10 +1,12 @@
 import { DurableObject, exports as self } from "cloudflare:workers";
 import { dashboardCss, dashboardFavicon, dashboardHtml } from "./dashboard.ts";
+export { CompilerJob } from "./compiler-job.ts";
 
 // The existing native host and Docker compiler are trusted-local only. Never
 // forward public traffic to them. This fixed, token-protected staging probe
 // checks the pinned image without admitting or executing uploaded code.
 const probePath = "/_midgard/operator/native-probe";
+const compilerProbePath = "/_midgard/operator/compiler-probe";
 
 function holdingResponse() {
 	return new Response("Midgard is preparing for public launch. No workers are available yet.\n", {
@@ -89,7 +91,7 @@ export default {
 				});
 			}
 		}
-		if (path !== probePath || request.method !== "POST") {
+		if ((path !== probePath && path !== compilerProbePath) || request.method !== "POST") {
 			return holdingResponse();
 		}
 		if (!(await authorized(request, env.STAGING_PROBE_TOKEN))) {
@@ -97,7 +99,9 @@ export default {
 		}
 
 		try {
-			const result = await self.NativeRuntime.getByName("operator-staging").fetch("http://runtime.internal/probe");
+			const result = path === compilerProbePath
+				? await self.CompilerJob.get(self.CompilerJob.newUniqueId()).fetch("http://compiler.internal/probe")
+				: await self.NativeRuntime.getByName("operator-staging").fetch("http://runtime.internal/probe");
 			return new Response(result.body, {
 				status: result.status,
 				headers: { "content-type": "application/json", "cache-control": "no-store" },
