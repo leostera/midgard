@@ -33,3 +33,16 @@ jobs:
             elixir -e "unless System.version() == \"1.21.0-dev\", do: System.halt(1)"
             test "$MIDGARD_SOURCE_COMMIT" = "$GITHUB_SHA"
           '
+
+      - name: Export verified amd64 image
+        run: |
+          image="midgard-runtime:${GITHUB_SHA:0:12}"
+          docker save --output "$RUNNER_TEMP/midgard-runtime.tar" "$image"
+          docker image inspect "$image" --format 'Verified image: {{.Size}} bytes, {{.Architecture}}'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: midgard-runtime-amd64
+          path: ${{ runner.temp }}/midgard-runtime.tar
+          if-no-files-found: error
+          retention-days: 2
