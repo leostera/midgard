@@ -1,7 +1,8 @@
 # midgard.leostera.dev
 
-The public hostname is served through **one edge Worker → one long-running Elixir
-HTTP service in a Cloudflare Container**. `NativeRuntime` is the Container's
+The public hostname is served through **one edge Worker → one Elixir HTTP
+service in a Cloudflare Container**. The service runs for the Container's
+lifetime, not across Container shutdowns. `NativeRuntime` is the Container's
 Durable Object lifecycle/port binding, not another application server. The
 Worker limits requests and forwards allowed HTTP paths to Bandit through its
 private TCP port. No `container.exec()` runs for a visitor request.
