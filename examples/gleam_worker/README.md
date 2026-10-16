@@ -11,4 +11,15 @@ mix packer.pack --project examples/gleam_worker --gleam \
 mix packer.inspect examples/gleam_worker/amber_worker.midgard
 ```
 
-Packer runs the trusted Gleam compiler's `export erlang-shipment`, includes only `.app`-declared production modules, and refuses native resources. Gleam's undeclared generated CLI `@@main` is not a worker module. Gleam dependencies, including `gleam_stdlib` when declared, must be packaged, not silently omitted to pass a single route. A structurally valid artifact does not establish whole-application libbeam admission or execution. This fixture's Packer tests run on ordinary tooling; packaging it does not guarantee that another Gleam project's full library closure runs in libbeam.
+Packer runs the trusted Gleam compiler's `export erlang-shipment`, includes only `.app`-declared production modules, and refuses native resources. Gleam's undeclared generated CLI `@@main` is not a worker module. Gleam dependencies, including `gleam_stdlib` when declared, must be packaged, not silently omitted to pass a single route. A structurally valid artifact alone does not establish whole-application libbeam admission or execution.
+
+To publish the built artifact, run `mix midgard.deploy --artifact examples/gleam_worker/amber_worker.midgard` from the repository root. This repository example's exact two-module shipment was verified, admitted, and called through libbeam:
+
+```sh
+curl -X POST -H 'Content-Type: application/octet-stream' \
+  --data-binary 'hello' \
+  'https://midgard.leostera.dev/run/amber_worker_16f327441c6fc766/'
+# hello
+```
+
+The raw-byte route accepts only `POST` at its root with at most 32 KiB of request bytes and returns `application/octet-stream`; it does not implement `GET /hello`. Each new deployment receives a new immutable route. This fixture's successful execution does not guarantee that another Gleam project's full library closure runs in libbeam.
