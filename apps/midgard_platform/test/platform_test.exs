@@ -93,6 +93,41 @@ defmodule MidgardPlatformTest do
     Supervisor.stop(platform)
   end
 
+  if System.get_env("MIDGARD_COMPILER_IMAGE") == "1" do
+    @tag native: true, timeout: 180_000
+    test "Elixir source compiles in a restricted container and its exact closure runs in an Isolate" do
+      directory =
+        Path.join(System.tmp_dir!(), "midgard-compiler-e2e-#{System.unique_integer([:positive])}")
+
+      File.mkdir_p!(directory)
+      on_exit(fn -> File.rm_rf!(directory) end)
+      artifact = Path.join(directory, "browser_worker.midgard")
+
+      source = """
+      defmodule BrowserWorker do
+        use Midgard.Worker
+        def handle_request(%Midgard.Request{path: "/hello"}), do: {200, "Hello, world!\\n"}
+        def handle_request(_), do: {404, "Not found\\n"}
+      end
+      """
+
+      assert {:ok, %{modules: count}} =
+               Midgard.Platform.Compiler.compile("browser_worker", source, artifact)
+
+      assert count > 300
+      assert {:ok, %Shipment{}} = Shipment.read(artifact)
+      {:ok, platform} = Platform.start_link()
+      assert {:ok, _} = Platform.deploy("browser_worker", artifact, defer_denied_nif: true)
+      get = <<1, 3, 6::16, 0::16, 0, 0::16, "GET", "/hello">>
+
+      assert {:ok, <<2, 200::16, 14::16, "Hello, world!\n">>} =
+               Platform.call("browser_worker", get)
+
+      assert :ok = Platform.stop("browser_worker")
+      Supervisor.stop(platform)
+    end
+  end
+
   defp echo_shipment(body \\ "Bytes") do
     directory =
       Path.join(System.tmp_dir!(), "midgard-platform-#{System.unique_integer([:positive])}")
