@@ -81,7 +81,9 @@ defmodule Midgard.Platform.Compiler do
                @image,
                "--format",
                "{{index .Config.Labels \"org.midgard.elixir-source\"}} {{.Id}}"
-             ], stderr_to_stdout: true),
+             ],
+             stderr_to_stdout: true
+           ),
          [@source_commit, "sha256:" <> digest] <- String.split(String.trim(output)),
          true <- Regex.match?(~r/\A[0-9a-f]{64}\z/, digest) do
       {:ok, "sha256:" <> digest}

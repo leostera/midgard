@@ -126,6 +126,37 @@ defmodule MidgardPlatformTest do
       assert :ok = Platform.stop("browser_worker")
       Supervisor.stop(platform)
     end
+
+    @tag native: true, timeout: 180_000
+    test "browser source can run a compile-time effect only inside the container" do
+      root =
+        Path.join(
+          System.tmp_dir!(),
+          "midgard-compile-sandbox-#{System.unique_integer([:positive])}"
+        )
+
+      File.mkdir_p!(root)
+      on_exit(fn -> File.rm_rf!(root) end)
+      marker = "/tmp/midgard-host-marker-#{System.unique_integer([:positive])}"
+      refute File.exists?(marker)
+
+      source = """
+      defmodule IsolatedWorker do
+        @compile_result File.write!(#{inspect(marker)}, "inside container")
+        use Midgard.Worker
+        def handle_request(_), do: {200, "ok"}
+      end
+      """
+
+      assert {:ok, _} =
+               Midgard.Platform.Compiler.compile(
+                 "isolated_worker",
+                 source,
+                 Path.join(root, "out.midgard")
+               )
+
+      refute File.exists?(marker)
+    end
   end
 
   defp echo_shipment(body \\ "Bytes") do
