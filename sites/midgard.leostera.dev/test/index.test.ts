@@ -37,13 +37,14 @@ function runtimeHarness() {
 	const container = {
 		running: false,
 		images: { server: "midgard-runtime@sha256:example" },
-		start(options: { env: Record<string, string> }) {
+		start(options: { env: Record<string, string>; instance: string }) {
+			expect(options.instance).toBe("standard-2");
 			expect(options.env.MIDGARD_INTERNAL_UPLOAD_KEY.length).toBe(64);
 			this.running = true;
 			starts++;
 		},
 		async destroy() { destroys++; this.running = false; },
-		async setInactivityTimeout(value: number) { expect(value).toBe(120_000); },
+		async setInactivityTimeout(value: number) { expect(value).toBe(600_000); },
 		getTcpPort(port: number) {
 			expect(port).toBe(4000);
 			return { fetch: async (request: Request) => {

@@ -96,11 +96,11 @@ export class NativeRuntime extends DurableObject<Env> {
 		if (container.running) await container.destroy();
 		container.start({
 			image: container.images.server,
-			instance: "standard-1",
+			instance: "standard-2",
 			enableInternet: false,
 			env: { MIDGARD_CONTAINER_HTTP: "1", MIDGARD_INTERNAL_UPLOAD_KEY: this.gateway() },
 		});
-		await container.setInactivityTimeout(120_000);
+		await container.setInactivityTimeout(600_000);
 		const health = new Request(`${backend}/`, { headers: { host: "127.0.0.1:4000" } });
 		const ready = await this.portFetch(health, true);
 		if (ready.status !== 200) throw new Error("Elixir service did not start");
@@ -108,6 +108,7 @@ export class NativeRuntime extends DurableObject<Env> {
 		sql.exec("DELETE FROM chunks WHERE slug IN (SELECT slug FROM shipments WHERE active = 0)");
 		sql.exec("DELETE FROM shipments WHERE active = 0");
 		const saved = this.ctx.storage.sql.exec<Saved>("SELECT slug, app, digest, size, checksum FROM shipments WHERE active = 1 ORDER BY rowid").toArray();
+		console.log(JSON.stringify({ event: "restore_start", count: saved.length }));
 		for (const shipment of saved) {
 			const bytes = await this.readShipment(shipment);
 			const response = await this.uploadToHost(shipment.app, shipment.slug, bytes);
@@ -116,6 +117,7 @@ export class NativeRuntime extends DurableObject<Env> {
 			if (admitted.digest !== shipment.digest || admitted.slug !== shipment.slug) {
 				throw new Error(`Stored shipment was not re-admitted: ${shipment.slug}`);
 			}
+			console.log(JSON.stringify({ event: "restore_admitted", slug: shipment.slug }));
 		}
 	}
 
@@ -165,6 +167,7 @@ export class NativeRuntime extends DurableObject<Env> {
 			return text("Invalid deployment request", 400);
 		}
 		this.busy = true;
+		console.log(JSON.stringify({ event: "deploy_start", app }));
 		let route: string | undefined;
 		try {
 			await this.ensureReady();
@@ -183,7 +186,9 @@ export class NativeRuntime extends DurableObject<Env> {
 					sql.exec("INSERT INTO chunks (slug, part, data) VALUES (?, ?, ?)", route, part, chunk.buffer);
 				}
 			});
+			console.log(JSON.stringify({ event: "deploy_stored", app, route, bytes: bytes.byteLength }));
 			const response = await this.uploadToHost(app, route, bytes);
+			console.log(JSON.stringify({ event: "deploy_admission_response", app, route, status: response.status }));
 			if (response.status !== 201) {
 				this.discard(route);
 				return response;
@@ -195,6 +200,7 @@ export class NativeRuntime extends DurableObject<Env> {
 			sql.exec("UPDATE shipments SET digest = ?, active = 1 WHERE slug = ? AND active = 0", result.digest, route);
 			return response;
 		} catch (error) {
+			console.error(JSON.stringify({ event: "deploy_failed", app, route, error: String(error) }));
 			if (route) this.discard(route);
 			// A failed publication can leave an uncommitted live handle in the
 			// container; force a fresh admission from durable active shipments.
