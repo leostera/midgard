@@ -3,6 +3,7 @@ defmodule Midgard.Platform.Publisher do
   Serializes revisions per worker and publishes a URL only after atomic native
   admission. A failed compile or load leaves the preceding revision callable.
   """
+  require Logger
   alias Midgard.Platform.{Compiler, Workspace}
 
   def deploy(slug, source) do
@@ -29,17 +30,29 @@ defmodule Midgard.Platform.Publisher do
 
       case Workspace.finish_deploy(slug, {:ok, live}) do
         {:ok, previous} ->
-          if previous, do: Midgard.Platform.stop(previous.id)
+          if previous, do: reclaim(previous.id)
           {:ok, live}
 
         error ->
-          Midgard.Platform.stop(id)
+          reclaim(id)
           error
       end
     else
+      {:ok, _different_digest} ->
+        reclaim(id)
+        File.rm_rf(destination)
+        {:error, "shipment changed between compilation and admission"}
+
       {:error, reason} = error ->
         File.rm_rf(destination)
         if match?(%Libbeam.Error{}, reason), do: {:error, reason.message}, else: error
+    end
+  end
+
+  defp reclaim(id) do
+    case Midgard.Platform.stop(id) do
+      :ok -> :ok
+      {:error, reason} -> Logger.error("Isolate #{id} could not be reclaimed: #{inspect(reason)}")
     end
   end
 
