@@ -1,4 +1,5 @@
 import { DurableObject, exports as self } from "cloudflare:workers";
+import { dashboardCss, dashboardFavicon, dashboardHtml } from "./dashboard.ts";
 
 // The existing native host and Docker compiler are trusted-local only. Never
 // forward public traffic to them. This fixed, token-protected staging probe
@@ -65,7 +66,30 @@ export class NativeRuntime extends DurableObject<Env> {
 
 export default {
 	async fetch(request: Request, env: Env) {
-		if (new URL(request.url).pathname !== probePath || request.method !== "POST") {
+		const path = new URL(request.url).pathname;
+		if (request.method === "GET") {
+			if (path === "/") {
+				return new Response(dashboardHtml, {
+					headers: {
+						"content-type": "text/html; charset=utf-8",
+						"cache-control": "no-store",
+						"x-content-type-options": "nosniff",
+						"x-robots-tag": "noindex",
+						"content-security-policy": "default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+					},
+				});
+			}
+			if (path === "/assets/app.css" || path === "/assets/favicon.svg") {
+				return new Response(path.endsWith(".css") ? dashboardCss : dashboardFavicon, {
+					headers: {
+						"content-type": path.endsWith(".css") ? "text/css; charset=utf-8" : "image/svg+xml",
+						"cache-control": "public, max-age=3600",
+						"x-content-type-options": "nosniff",
+					},
+				});
+			}
+		}
+		if (path !== probePath || request.method !== "POST") {
 			return holdingResponse();
 		}
 		if (!(await authorized(request, env.STAGING_PROBE_TOKEN))) {

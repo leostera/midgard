@@ -25,14 +25,29 @@ const { default: worker, NativeRuntime } = await import("../src/index.ts");
 const probeUrl = "https://midgard.leostera.dev/_midgard/operator/native-probe";
 const env = { STAGING_PROBE_TOKEN: "test-secret" } as Env;
 
-test("public hostname stays closed until workers can run safely", async () => {
+test("public hostname serves a real empty inventory without exposing writes", async () => {
 	const response = await worker.fetch(new Request("https://midgard.leostera.dev/"), env);
 	const body = await response.text();
 
-	expect(response.status).toBe(503);
-	expect(body).toContain("No workers are available yet");
+	expect(response.status).toBe(200);
+	expect(body).toContain("Compute");
+	expect(body).toContain("No public workers yet");
+	expect(body).toContain("Create worker · Not yet available");
+	expect(body).not.toContain("/workers/new");
 	expect(response.headers.get("cache-control")).toBe("no-store");
 	expect(response.headers.get("x-robots-tag")).toBe("noindex");
+});
+
+test("dashboard assets load without granting upload access", async () => {
+	for (const [path, contentType] of [
+		["/assets/app.css", "text/css; charset=utf-8"],
+		["/assets/favicon.svg", "image/svg+xml"],
+	]) {
+		const response = await worker.fetch(new Request(`https://midgard.leostera.dev${path}`), env);
+		expect(response.status).toBe(200);
+		expect(response.headers.get("content-type")).toBe(contentType);
+	}
+	expect((await worker.fetch(new Request("https://midgard.leostera.dev/workers", { method: "POST" }), env)).status).toBe(503);
 });
 
 test("unknown paths and GET probes never boot a container", async () => {

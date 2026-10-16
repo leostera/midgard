@@ -4,11 +4,13 @@ This Cloudflare Worker owns the **single public hostname** `midgard.leostera.dev
 Cloudflare provisions its proxied DNS record and TLS certificate from the
 `domains` entry in `cloudflare.config.ts`.
 
-**Current release is a holding response, not the Midgard platform.** It returns
-503 with `no-store` and `noindex` because the trusted-local Elixir editor and
-native libbeam host are not safe for anonymous public source uploads. Do not
-proxy the local server, embed Cloudflare credentials in browser code, or mark
-workers live before verified native admission.
+**Current release is a read-only empty worker inventory, not yet a working
+worker platform.** The root returns a real 200 dashboard with the existing
+Contrast rail, but creating, editing, deploying, and calling public workers
+remain unavailable. Other public paths return 503. The trusted-local Elixir
+editor and native libbeam host are not safe for anonymous public uploads. Do
+not proxy the local server, embed credentials in browser code, or mark workers
+live before verified native admission.
 
 A `NativeRuntime` Durable Object can boot the digest-pinned amd64 image in an
 offline Cloudflare Container. The existing Elixir server remains loopback-only
@@ -18,8 +20,9 @@ boots one fixed staging instance and checks a loopback HTTP 200 via `exec`.
 Never expose this token in browser code or commit it. Container inactivity
 shutdown is set to two minutes. This only proves container boot and an internal
 HTTP response; it does **not** prove uploaded source compilation, admission,
-or worker invocation. All unauthenticated paths still return the holding
-response (except invalid probe requests, which return 404).
+or worker invocation. The public dashboard and its two assets are the only open pages; other
+unauthenticated paths return 503 (except invalid probe requests, which return
+404).
 
 ```sh
 cd sites/midgard.leostera.dev
