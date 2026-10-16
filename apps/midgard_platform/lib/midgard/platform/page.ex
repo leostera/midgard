@@ -94,11 +94,11 @@ defmodule Midgard.Platform.Page do
       if(record.live,
         do: [
           "<section class='live-panel' aria-label='Live deployment'><div class='call-details'><div class='live-label'><span class='status-dot' aria-hidden='true'></span> Deployed worker</div>",
-          "<h2>Call this worker</h2><p>This is a route prefix; append a path implemented by your project. A generated worker responds at <a href='",
-          safe(route <> "hello"),
-          "'>GET /hello</a>.</p><code class='endpoint'>",
+          "<h2>Call this worker</h2><p>Use a path implemented by your project. Generated workers respond at /hello.</p><code class='endpoint'>",
           safe(route),
-          "</code></div><dl class='deployment-meta'><div><dt>Modules</dt><dd>",
+          "</code><div class='invoke-action'><a class='button primary' href='",
+          safe(route <> "hello"),
+          "' target='_blank' rel='noopener'>Try GET /hello</a></div></div><dl class='deployment-meta'><div><dt>Modules</dt><dd>",
           Integer.to_string(record.live.modules),
           " BEAMs</dd></div><div><dt>Shipment</dt><dd><code>",
           safe(String.slice(record.live.digest, 0, 12)),
@@ -221,7 +221,7 @@ defmodule Midgard.Platform.Page do
       "<th scope='col'>",
       sort_link("Last invoked", "recent", filters),
       "</th>",
-      "<th scope='col'>Route prefix</th><th scope='col'><span class='sr-only'>Open worker</span></th>",
+      "<th scope='col'>Actions</th>",
       "</tr></thead><tbody>",
       Enum.map(workers, &worker_row/1),
       "</tbody></table></div><div class='table-footer'><span>Showing ",
@@ -256,17 +256,22 @@ defmodule Midgard.Platform.Page do
         else: last_invoked(worker.last_invoked_at)
       ),
       "</td>",
-      "<td>",
+      "<td class='open-cell'>",
       if(worker.live,
-        do: ["<code class='route'>/run/", safe(worker.slug), "/</code>"],
-        else: "<span class='muted'>Not deployed</span>"
+        do: [
+          "<a class='try-link' href='/run/",
+          safe(worker.slug),
+          "/hello' target='_blank' rel='noopener' aria-label='Try GET /hello on ",
+          safe(worker.slug),
+          "'>Try /hello</a>"
+        ],
+        else: ""
       ),
-      "</td>",
-      "<td class='open-cell'><a href='/workers/",
+      "<a class='details-link' href='/workers/",
       safe(worker.slug),
-      "' aria-label='Open ",
+      "' aria-label='Open details for ",
       safe(worker.slug),
-      "'>Open <span aria-hidden='true'>→</span></a></td></tr>"
+      "'>Details</a></td></tr>"
     ]
   end
 

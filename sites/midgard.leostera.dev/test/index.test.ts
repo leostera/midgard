@@ -34,6 +34,7 @@ function runtimeHarness() {
 	const requests: Request[] = [];
 	let starts = 0;
 	let destroys = 0;
+	let timeouts = 0;
 	const container = {
 		running: false,
 		images: { server: "midgard-runtime@sha256:example" },
@@ -44,7 +45,7 @@ function runtimeHarness() {
 			starts++;
 		},
 		async destroy() { destroys++; this.running = false; },
-		async setInactivityTimeout(value: number) { expect(value).toBe(600_000); },
+		async setInactivityTimeout(value: number) { expect(value).toBe(21_600_000); timeouts++; },
 		getTcpPort(port: number) {
 			expect(port).toBe(4000);
 			return { fetch: async (request: Request) => {
@@ -75,7 +76,7 @@ function runtimeHarness() {
 		storage: { sql, transactionSync: (fn: () => unknown) => db.transaction(fn)() },
 		blockConcurrencyWhile: (fn: () => Promise<unknown>) => fn(),
 	} as unknown as DurableObjectState;
-	return { ctx, container, requests, starts: () => starts, destroys: () => destroys };
+	return { ctx, container, requests, starts: () => starts, destroys: () => destroys, timeouts: () => timeouts };
 }
 
 test("dashboard, guide and assets pass through the private Elixir service", async () => {
@@ -107,6 +108,14 @@ test("public uploads and calls are rate limited before entering the DO", async (
 	expect((await worker.fetch(visit("/api/deployments/hello", "POST"), env)).status).toBe(429);
 	state.buildsLimited = false;
 	expect(state.calls).toBe(0);
+});
+
+test("a DO restart renews the maximum sleep period for a surviving container", async () => {
+	const { ctx, container, timeouts } = runtimeHarness();
+	container.running = true;
+	new NativeRuntime(ctx, env);
+	await Promise.resolve();
+	expect(timeouts()).toBe(1);
 });
 
 test("anonymous uploads receive immutable routes and recover exact stored bytes", async () => {

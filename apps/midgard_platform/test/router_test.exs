@@ -123,6 +123,29 @@ defmodule MidgardPlatformRouterTest do
     assert {:error, :not_found} = Workspace.read("elsewhere")
   end
 
+  test "inventory omits route prefixes and links deployed workers to callable examples" do
+    slug = "hello_joe_0123456789abcdef"
+
+    record = %{
+      slug: slug,
+      live: %{modules: 342, digest: String.duplicate("a", 64)},
+      origin: :cli,
+      invocations: 0,
+      last_invoked_at: nil
+    }
+
+    html = Midgard.Platform.Page.index([record])
+    refute html =~ "<th scope='col'>Route prefix</th>"
+    refute html =~ "<code class='route'>/run/"
+    assert html =~ "href='/run/#{slug}/hello'"
+    assert html =~ "Try /hello"
+    assert html =~ "href='/workers/#{slug}'"
+
+    details = Midgard.Platform.Page.uploaded_worker(slug, record, 4000)
+    assert details =~ "href='http://127.0.0.1:4000/run/#{slug}/hello'"
+    assert details =~ "Try GET /hello"
+  end
+
   test "search, status filters, sorting and pagination work without JavaScript" do
     for n <- 1..30 do
       assert :ok = Workspace.create("worker_#{n}")
