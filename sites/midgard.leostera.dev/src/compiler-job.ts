@@ -14,7 +14,7 @@ end
 `;
 
 export class CompilerJob extends DurableObject<Env> {
-	async fetch(): Promise<Response> {
+	async fetch(request: Request): Promise<Response> {
 		const container = this.ctx.container;
 		if (!container) throw new Error("Compiler container binding is unavailable");
 		if (container.running) throw new Error("Compiler job must start from a fresh VM");
@@ -45,7 +45,17 @@ export class CompilerJob extends DurableObject<Env> {
 			}
 			const manifest: unknown = JSON.parse(new TextDecoder().decode(manifestOutput.stdout));
 			if (!isProbeManifest(manifest)) throw new Error("Compiler output is not a Probe shipment");
-			return Response.json({ compiled: true, modules: manifest.modules.length });
+			if (new URL(request.url).pathname !== "/package") {
+				return Response.json({ compiled: true, modules: manifest.modules.length });
+			}
+			const archive = await container.exec([
+				"/usr/bin/tar", "-cf", "-", "-C", "/output", "manifest.json", "modules",
+			]);
+			const packaged = await archive.output();
+			if (packaged.exitCode !== 0 || packaged.stdout.byteLength > 40_000_000) {
+				throw new Error("Compiler archive failed or exceeds its size limit");
+			}
+			return new Response(packaged.stdout, { headers: { "content-type": "application/x-tar" } });
 		} finally {
 			await container.destroy();
 		}

@@ -102,7 +102,7 @@ test("native probe starts the pinned image offline and checks loopback HTTP", as
 		},
 	};
 	const runtime = new NativeRuntime({ container } as unknown as DurableObjectState, env);
-	const response = await runtime.fetch();
+	const response = await runtime.fetch(new Request("http://runtime.internal/probe"));
 	expect(startup).toEqual({
 		image: "pinned-image@sha256:example", instance: "standard-1", enableInternet: false,
 	});

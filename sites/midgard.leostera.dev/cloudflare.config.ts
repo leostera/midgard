@@ -40,6 +40,10 @@ export default defineConfig({
 		entrypoint,
 		env: {
 			STAGING_PROBE_TOKEN: bindings.secret(),
+			SHIPMENTS: bindings.r2({ name: "midgard-public-shipments" }),
+			WORKER_SOURCES: bindings.artifacts({ namespace: "midgard-workers" }),
+			CREATE_RATE: bindings.rateLimit({ namespace: "1001", simple: { limit: 2, period: 60 } }),
+			CALL_RATE: bindings.rateLimit({ namespace: "1002", simple: { limit: 60, period: 60 } }),
 		},
 		exports: {
 			NativeRuntime: exports.durableObject({ storage: "sqlite", container: nativeRuntime }),
