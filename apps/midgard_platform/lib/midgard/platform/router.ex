@@ -1,6 +1,7 @@
 defmodule Midgard.Platform.Router do
   @moduledoc "Local-only editor, deployment actions and callable worker URLs."
   use Plug.Router
+  require Logger
   alias Midgard.Platform.{Page, Publisher, Workspace}
 
   plug(:local_request)
@@ -8,7 +9,12 @@ defmodule Midgard.Platform.Router do
   plug(:dispatch)
 
   get "/" do
-    html(conn, Page.index(Workspace.list()))
+    if byte_size(conn.query_string) <= 512 do
+      conn = Plug.Conn.fetch_query_params(conn)
+      html(conn, Page.index(Workspace.list(), conn.query_params))
+    else
+      send_resp(conn, 400, "filter query too long\n")
+    end
   end
 
   get "/workers/new" do
@@ -71,7 +77,7 @@ defmodule Midgard.Platform.Router do
   match "/run/:slug/*tail" do
     case Workspace.read(slug) do
       {:ok, %{record: %{live: %{id: deployment}}}} ->
-        invoke(conn, deployment, tail)
+        invoke(conn, slug, deployment, tail)
 
       _ ->
         send_resp(conn, 404, "worker not deployed\n")
@@ -82,7 +88,7 @@ defmodule Midgard.Platform.Router do
     html(conn, Page.not_found(), 404)
   end
 
-  defp invoke(conn, deployment, tail) do
+  defp invoke(conn, slug, deployment, tail) do
     case read_request_body(conn, 32_768) do
       {:ok, body, conn} ->
         request = %Midgard.Request{
@@ -94,7 +100,7 @@ defmodule Midgard.Platform.Router do
         }
 
         with {:ok, bytes} <- Midgard.Protocol.request(request),
-             {:ok, reply} <- Midgard.Platform.call(deployment, bytes),
+             {:ok, reply} <- call_worker(slug, deployment, bytes),
              {:ok, {status, payload}} <- Midgard.Protocol.decode_response(reply) do
           conn |> put_resp_content_type("text/plain", "utf-8") |> send_resp(status, payload)
         else
@@ -111,6 +117,24 @@ defmodule Midgard.Platform.Router do
       {:error, conn} ->
         send_resp(conn, 413, "request body exceeds 32 KiB\n")
     end
+  end
+
+  defp call_worker(slug, deployment, bytes) do
+    result = Midgard.Platform.call(deployment, bytes)
+
+    # A missing Isolate is not an invocation. Telemetry failure never changes
+    # the HTTP outcome of a call that did reach the native deployment registry.
+    unless result == {:error, :not_deployed} do
+      case Workspace.record_invocation(slug) do
+        :ok ->
+          :ok
+
+        {:error, reason} ->
+          Logger.warning("Could not record invocation for #{slug}: #{inspect(reason)}")
+      end
+    end
+
+    result
   end
 
   defp deploy_error(conn, slug, reason) do

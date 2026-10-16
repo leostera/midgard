@@ -1,10 +1,12 @@
 defmodule Midgard.Platform.Workspace do
   @moduledoc """
   Trusted-local source workspace. The only persistent files are bounded source
-  drafts and immutable deployment artifacts; running handles never survive an
+  drafts, per-worker invocation totals, and immutable deployment artifacts;
+  running handles never survive an
   Engine restart and therefore are deliberately not restored from disk.
   """
   use GenServer
+  alias Midgard.Platform.Traffic
   @max_workers 100
   @max_source 65_536
   @slug ~r/\A[a-z][a-z0-9_]{0,39}\z/
@@ -15,6 +17,7 @@ defmodule Midgard.Platform.Workspace do
   def create(slug), do: GenServer.call(__MODULE__, {:create, slug})
   def begin_deploy(slug, source), do: GenServer.call(__MODULE__, {:begin_deploy, slug, source})
   def finish_deploy(slug, result), do: GenServer.call(__MODULE__, {:finish_deploy, slug, result})
+  def record_invocation(slug), do: GenServer.call(__MODULE__, {:record_invocation, slug})
 
   def root, do: Application.fetch_env!(:midgard_platform, :workspace)
   def valid_slug?(slug), do: is_binary(slug) and Regex.match?(@slug, slug)
@@ -49,7 +52,13 @@ defmodule Midgard.Platform.Workspace do
     rows =
       state.workers
       |> Enum.map(fn {slug, item} ->
-        %{slug: slug, live: item.live, busy: item.busy}
+        traffic =
+          case Traffic.read(state.root, slug) do
+            {:ok, data} -> data
+            {:error, _} -> %{invocations: nil, last_invoked_at: nil}
+          end
+
+        Map.merge(%{slug: slug, live: item.live, busy: item.busy}, traffic)
       end)
       |> Enum.sort_by(& &1.slug)
 
@@ -62,6 +71,14 @@ defmodule Midgard.Platform.Workspace do
         {:ok, bytes} -> {:reply, {:ok, %{source: bytes, record: state.workers[slug]}}, state}
         _ -> {:reply, {:error, :source_unavailable}, state}
       end
+    else
+      {:reply, {:error, :not_found}, state}
+    end
+  end
+
+  def handle_call({:record_invocation, slug}, _from, state) do
+    if valid_slug?(slug) and Map.has_key?(state.workers, slug) do
+      {:reply, Traffic.record(state.root, slug), state}
     else
       {:reply, {:error, :not_found}, state}
     end

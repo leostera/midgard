@@ -53,13 +53,24 @@ try {
   await page.getByRole("button", { name: "Compile & deploy" }).click({ timeout: 90_000 });
   await page.getByText("Live endpoint").waitFor({ timeout: 90_000 });
   assert.equal(await (await fetch(`${origin}/run/demo_worker/hello`)).text(), "Hello from demo_worker!\n");
+  await page.goto(origin, { waitUntil: "networkidle" });
+  assert.match(await page.locator(".worker-table").textContent(), /demo_worker[\s\S]*Deployed[\s\S]*1/);
+  await page.screenshot({ path: join(review, "desktop.png"), fullPage: true });
+  await page.getByRole("searchbox", { name: "Search workers" }).fill("not_here");
+  await page.getByRole("button", { name: "Search" }).click();
+  await page.getByText("No matching workers").waitFor();
+  await page.getByRole("link", { name: "Clear filters" }).click();
+  await page.getByRole("link", { name: "Open demo_worker" }).click();
   await page.evaluate(() => document.fonts.ready);
   await page.screenshot({ path: join(review, "platform-deployed-desktop.png"), fullPage: true });
 
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   mobile.on("pageerror", (error) => errors.push(error.message));
-  await mobile.goto(`${origin}/workers/demo_worker`, { waitUntil: "networkidle" });
+  await mobile.goto(origin, { waitUntil: "networkidle" });
   await mobile.evaluate(() => document.fonts.ready);
+  assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await mobile.screenshot({ path: join(review, "mobile.png"), fullPage: true });
+  await mobile.getByRole("link", { name: "demo_worker", exact: true }).click();
   assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   await mobile.screenshot({ path: join(review, "platform-deployed-mobile.png"), fullPage: true });
 

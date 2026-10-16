@@ -1,6 +1,6 @@
 defmodule MidgardPlatformRouterTest do
   use ExUnit.Case, async: false
-  alias Midgard.Platform.{Router, Workspace}
+  alias Midgard.Platform.{Router, Traffic, Workspace}
 
   setup do
     root =
@@ -21,7 +21,7 @@ defmodule MidgardPlatformRouterTest do
         else: Application.delete_env(:midgard_platform, :workspace)
     end)
 
-    :ok
+    {:ok, root: root}
   end
 
   test "the local dashboard creates a worker and escapes source in the editor" do
@@ -74,6 +74,58 @@ defmodule MidgardPlatformRouterTest do
 
     assert forbidden.status == 403
     assert {:error, :not_found} = Workspace.read("elsewhere")
+  end
+
+  test "search, status filters, sorting and pagination work without JavaScript" do
+    for n <- 1..30 do
+      assert :ok = Workspace.create("worker_#{n}")
+    end
+
+    assert :ok = Workspace.record_invocation("worker_29")
+    assert :ok = Workspace.record_invocation("worker_29")
+    assert :ok = Workspace.record_invocation("worker_1")
+
+    first = response(:get, "/")
+    assert first.resp_body =~ "Showing 1–25 of 30"
+    assert first.resp_body =~ "Next"
+    refute first.resp_body =~ "href='/workers/worker_9'"
+
+    second = response(:get, "/?page=2")
+    assert second.resp_body =~ "Showing 26–30 of 30"
+    assert second.resp_body =~ "href='/workers/worker_9'"
+
+    searched = response(:get, "/?q=worker_29&sort=invocations")
+    assert searched.resp_body =~ "Showing 1–1 of 1"
+    assert searched.resp_body =~ "href='/workers/worker_29'"
+    refute searched.resp_body =~ "href='/workers/worker_1'"
+
+    filtered = response(:get, "/?q=worker_29&status=deployed")
+    assert filtered.resp_body =~ "No matching workers"
+    assert response(:get, "/?q=worker_29&status=drafts").resp_body =~ "href='/workers/worker_29'"
+    assert response(:get, "/?q=%3Cscript%3E").resp_body =~ "No matching workers"
+    refute response(:get, "/?q=%3Cscript%3E").resp_body =~ "<script>"
+  end
+
+  test "invocation totals survive workspace restarts and malformed files are not reported as zero",
+       %{root: root} do
+    assert :ok = Workspace.create("counted")
+    assert %{invocations: 0, last_invoked_at: nil} = elem(Traffic.read(root, "counted"), 1)
+    assert :ok = Workspace.record_invocation("counted")
+    assert :ok = Workspace.record_invocation("counted")
+    assert [%{invocations: 2, last_invoked_at: last}] = Workspace.list()
+    assert is_integer(last)
+    assert response(:get, "/").resp_body =~ "Invocations"
+
+    GenServer.stop(Process.whereis(Workspace))
+    {:ok, _workspace} = Workspace.start_link(root: root)
+    assert [%{invocations: 2, last_invoked_at: ^last}] = Workspace.list()
+    assert :ok = Workspace.record_invocation("counted")
+    assert [%{invocations: 3}] = Workspace.list()
+
+    File.write!(Path.join([root, "workers", "counted", "traffic.tsv"]), "invalid")
+    assert {:error, :invalid_traffic_file} = Workspace.record_invocation("counted")
+    assert [%{invocations: nil}] = Workspace.list()
+    assert response(:get, "/").resp_body =~ "Invocation history unavailable"
   end
 
   test "deployment lock prevents overlapping publishes of the same URL" do

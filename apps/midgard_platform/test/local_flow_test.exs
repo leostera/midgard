@@ -61,6 +61,24 @@ if System.get_env("MIDGARD_COMPILER_IMAGE") == "1" do
       assert http.status == 200
       assert http.resp_body == <<0, 5, 255>>
 
+      assert [%{slug: "hello_local", invocations: 1, last_invoked_at: timestamp}] =
+               Workspace.list()
+
+      assert is_integer(timestamp)
+
+      not_found =
+        Plug.Test.conn(:get, "http://127.0.0.1/run/hello_local/missing")
+        |> Midgard.Platform.Router.call(Midgard.Platform.Router.init([]))
+
+      assert not_found.status == 404
+
+      oversized =
+        Plug.Test.conn(:post, "http://127.0.0.1/run/hello_local/echo", :binary.copy("x", 32_769))
+        |> Midgard.Platform.Router.call(Midgard.Platform.Router.init([]))
+
+      assert oversized.status == 413
+      assert [%{invocations: 2}] = Workspace.list()
+
       assert {:error, message} = Publisher.deploy("hello_local", updated <> "\ninvalid elixir !")
       assert message =~ "compiler failed"
       assert {:ok, %{record: %{live: %{id: id}, busy: false}}} = Workspace.read("hello_local")
@@ -84,6 +102,7 @@ if System.get_env("MIDGARD_COMPILER_IMAGE") == "1" do
                end
              end)
 
+      assert [%{slug: "hello_local", live: nil, invocations: 2}] = Workspace.list()
       Supervisor.stop(platform)
       GenServer.stop(workspace)
     end

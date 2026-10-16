@@ -16,16 +16,24 @@ iex -S mix
 
 Open **http://127.0.0.1:4000**, click **Create worker**, enter a lowercase
 name, edit the starter source and click **Compile & deploy**. The page shows
-the live URL, e.g. `http://127.0.0.1:4000/run/hello_world/hello`. The path
+the live URL, e.g. `http://127.0.0.1:4000/run/hello_world/hello`. The full-height
+Workers view has a Compute → Workers sidebar, server-side search, status filters,
+sortable columns, and 25-worker pages; it shows real invocation totals and last
+invocation times for routed HTTP requests. The path
 after the worker name is passed unchanged as the worker request path. GET,
 POST and other methods use the bounded `midgard.bytes.v1` request protocol;
 responses currently include status and body, not custom response headers.
 
-Draft source and versioned checked artifacts live under `.midgard-platform/`
+Draft source, per-worker invocation totals, and versioned checked artifacts live under `.midgard-platform/`
 in the directory where the command was started, ignored by Git. Override with
 `MIDGARD_WORKSPACE=/absolute/path` and the loopback port with
 `MIDGARD_PORT=4001`. Drafts survive restarts; Isolate handles do not. On
-restart, workers show as drafts and need explicit redeployment. New revisions
+restart, workers show as drafts and need explicit redeployment; invocation totals
+persist across restarts and redeployments. A count increments for each valid,
+protocol-bounded HTTP request routed to a live worker, including failed worker
+calls, but excludes unknown workers and invalid or oversized requests. It is
+local routing telemetry, not native Isolate CPU usage or external traffic.
+New revisions
 are admitted before the live URL switches; compilation/admission failures keep
 the last working deployment online.
 
