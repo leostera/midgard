@@ -85,7 +85,8 @@ test("dashboard, guide and assets pass through the private Elixir service", asyn
 		expect(response.status).toBe(200);
 		expect(response.headers.get("cache-control")).toBe("no-store");
 	}
-	expect(state.calls).toBe(5);
+	expect((await worker.fetch(visit("/api/deployments/ready"), env)).status).toBe(204);
+	expect(state.calls).toBe(6);
 });
 
 test("unrelated writes and unknown paths never reach the backend", async () => {
@@ -111,6 +112,7 @@ test("public uploads and calls are rate limited before entering the DO", async (
 test("anonymous uploads receive immutable routes and recover exact stored bytes", async () => {
 	const { ctx, container, requests, starts, destroys } = runtimeHarness();
 	const runtime = new NativeRuntime(ctx, env);
+	expect((await runtime.fetch(new Request("https://midgard.leostera.dev/api/deployments/ready"))).status).toBe(204);
 	const body = new Uint8Array([0, 1, 2, 255]);
 	const request = new Request("https://midgard.leostera.dev/api/deployments/hello", {
 		method: "POST", headers: { "content-type": "application/vnd.midgard.shipment.v1" }, body,

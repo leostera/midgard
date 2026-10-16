@@ -222,6 +222,10 @@ export class NativeRuntime extends DurableObject<Env> {
 
 	async fetch(request: Request): Promise<Response> {
 		const url = new URL(request.url);
+		if (request.method === "GET" && url.pathname === "/api/deployments/ready") {
+			await this.ensureReady();
+			return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
+		}
 		if (request.method === "POST" && url.pathname.startsWith("/api/deployments/")) {
 			return this.deploy(request, url.pathname.slice("/api/deployments/".length));
 		}
@@ -241,9 +245,10 @@ export default {
 		const url = new URL(request.url);
 		const app = url.pathname.startsWith("/api/deployments/") ? url.pathname.slice("/api/deployments/".length) : null;
 		const isUpload = request.method === "POST" && app !== null && appName.test(app) && !url.search;
+		const isReady = request.method === "GET" && url.pathname === "/api/deployments/ready" && !url.search;
 		const isDetail = request.method === "GET" && /^\/workers\/[a-z][a-z0-9_]{0,39}$/.test(url.pathname);
 		const isCall = url.pathname.startsWith("/run/") && /^\/run\/[a-z][a-z0-9_]{0,39}\/.*$/.test(url.pathname) && ["GET", "POST", "PUT", "DELETE", "PATCH"].includes(request.method);
-		if (url.origin !== origin || (!isUpload && !isCall && !isDetail && !(request.method === "GET" && publicGets.has(url.pathname)))) {
+		if (url.origin !== origin || (!isUpload && !isReady && !isCall && !isDetail && !(request.method === "GET" && publicGets.has(url.pathname)))) {
 			return text("Not found", 404);
 		}
 		const ip = request.headers.get("cf-connecting-ip");
@@ -255,7 +260,14 @@ export default {
 			if (!build.success) return text("Too many deployments", 429);
 		}
 		try {
-			const response = await self.NativeRuntime.getByName("platform").fetch(request);
+			// Older DO instances can stay alive across edge deployments. Use the
+			// always-supported inventory path as the readiness probe as well.
+			const upstream = isReady ? new Request(`${origin}/`, request) : request;
+			const response = await self.NativeRuntime.getByName("platform").fetch(upstream);
+			if (isReady && [200, 204].includes(response.status)) {
+				await response.body?.cancel();
+				return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
+			}
 			const headers = new Headers(response.headers);
 			headers.set("cache-control", "no-store");
 			headers.set("x-content-type-options", "nosniff");

@@ -46,6 +46,7 @@ defmodule Mix.Tasks.Midgard.Deploy do
     end
 
     with {:ok, upload} <- ShipmentUpload.read_directory(path),
+         :ok <- wait_for_public_runtime(endpoint),
          url <- URI.to_string(endpoint) <> "/api/deployments/#{upload.application}",
          {:ok, response} <- post(url, ShipmentUpload.encode(upload), token),
          {:ok, result} <- parse_response(response, upload.application) do
@@ -74,7 +75,41 @@ defmodule Mix.Tasks.Midgard.Deploy do
     end
   end
 
-  defp post(url, bytes, token) do
+  defp wait_for_public_runtime(%URI{host: host} = endpoint) when host == "midgard.leostera.dev" do
+    ensure_http_started()
+    url = String.to_charlist(URI.to_string(endpoint) <> "/api/deployments/ready")
+    options = [timeout: 25_000] ++ ssl_options(endpoint)
+    Mix.shell().info("Checking public runtime before upload...")
+    wait_for_public_runtime(url, options, 8)
+  end
+
+  defp wait_for_public_runtime(_endpoint), do: :ok
+
+  defp wait_for_public_runtime(_url, _options, 0),
+    do: {:error, "Public runtime did not become ready; shipment was not uploaded"}
+
+  defp wait_for_public_runtime(url, options, attempts) do
+    case :httpc.request(:get, {url, []}, options, body_format: :binary) do
+      {:ok, {{_, 204, _}, _, _}} ->
+        :ok
+
+      {:ok, {{_, status, _}, _, _}} when status in [502, 503] ->
+        Process.sleep(3_000)
+        wait_for_public_runtime(url, options, attempts - 1)
+
+      {:error, reason} when reason in [:timeout, :socket_closed_remotely] ->
+        Process.sleep(3_000)
+        wait_for_public_runtime(url, options, attempts - 1)
+
+      {:ok, {{_, status, _}, _, _}} ->
+        {:error, "Public runtime readiness returned HTTP #{status}; shipment was not uploaded"}
+
+      {:error, reason} ->
+        {:error, "Public runtime readiness failed: #{inspect(reason)}; shipment was not uploaded"}
+    end
+  end
+
+  defp ensure_http_started do
     # An archive is loaded by Mix as a plugin, not started as an OTP app.
     # Its :extra_applications therefore do not put optional OTP libraries on
     # the code path in a fresh worker project.
@@ -89,6 +124,25 @@ defmodule Mix.Tasks.Midgard.Deploy do
 
     {:ok, _} = Application.ensure_all_started(:ssl)
     {:ok, _} = Application.ensure_all_started(:inets)
+  end
+
+  defp ssl_options(%URI{scheme: "https", host: host}) do
+    [
+      ssl: [
+        verify: :verify_peer,
+        cacerts: :public_key.cacerts_get(),
+        server_name_indication: String.to_charlist(host),
+        customize_hostname_check: [
+          match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+        ]
+      ]
+    ]
+  end
+
+  defp ssl_options(_uri), do: []
+
+  defp post(url, bytes, token) do
+    ensure_http_started()
     headers = [{~c"content-type", String.to_charlist(ShipmentUpload.content_type())}]
 
     headers =
@@ -98,25 +152,11 @@ defmodule Mix.Tasks.Midgard.Deploy do
 
     uri = URI.parse(url)
 
-    ssl =
-      if uri.scheme == "https",
-        do: [
-          ssl: [
-            verify: :verify_peer,
-            cacerts: :public_key.cacerts_get(),
-            server_name_indication: String.to_charlist(uri.host),
-            customize_hostname_check: [
-              match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
-            ]
-          ]
-        ],
-        else: []
-
     case :httpc.request(
            :post,
            {String.to_charlist(url), headers, String.to_charlist(ShipmentUpload.content_type()),
             bytes},
-           [timeout: 120_000] ++ ssl,
+           [timeout: 120_000] ++ ssl_options(uri),
            body_format: :binary
          ) do
       {:ok, {{_, status, _}, _, body}} -> {:ok, {status, body}}
