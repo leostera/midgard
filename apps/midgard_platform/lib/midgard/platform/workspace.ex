@@ -15,6 +15,7 @@ defmodule Midgard.Platform.Workspace do
   def list, do: GenServer.call(__MODULE__, :list)
   def read(slug), do: GenServer.call(__MODULE__, {:read, slug})
   def create(slug), do: GenServer.call(__MODULE__, {:create, slug})
+  def begin_upload(slug), do: GenServer.call(__MODULE__, {:begin_upload, slug})
   def begin_deploy(slug, source), do: GenServer.call(__MODULE__, {:begin_deploy, slug, source})
   def finish_deploy(slug, result), do: GenServer.call(__MODULE__, {:finish_deploy, slug, result})
   def record_invocation(slug), do: GenServer.call(__MODULE__, {:record_invocation, slug})
@@ -39,7 +40,14 @@ defmodule Midgard.Platform.Workspace do
           _ -> false
         end
       end)
-      |> Map.new(&{&1, %{live: nil, busy: false}})
+      |> Map.new(fn slug ->
+        origin =
+          if File.read(Path.join([root, "workers", slug, "origin"])) == {:ok, "cli\n"},
+            do: :cli,
+            else: :local
+
+        {slug, %{live: nil, busy: false, origin: origin}}
+      end)
 
     registry = Process.whereis(Midgard.Platform.Deployments)
     monitor = if registry, do: Process.monitor(registry)
@@ -111,8 +119,51 @@ defmodule Midgard.Platform.Workspace do
         case File.mkdir(path) do
           :ok ->
             File.write!(source_path(state.root, slug), template(slug))
-            workers = Map.put(state.workers, slug, %{live: nil, busy: false})
+            workers = Map.put(state.workers, slug, %{live: nil, busy: false, origin: :local})
             {:reply, :ok, %{state | workers: workers}}
+
+          _ ->
+            {:reply, {:error, :cannot_create_worker}, state}
+        end
+    end
+  end
+
+  def handle_call({:begin_upload, slug}, _from, state) do
+    cond do
+      not valid_slug?(slug) ->
+        {:reply, {:error, :invalid_name}, state}
+
+      match?(%{origin: :local}, state.workers[slug]) ->
+        {:reply, {:error, :name_owned_by_local_editor}, state}
+
+      match?(%{busy: true}, state.workers[slug]) ->
+        {:reply, {:error, :already_deploying}, state}
+
+      Map.has_key?(state.workers, slug) ->
+        workers = Map.update!(state.workers, slug, &%{&1 | busy: true})
+        {:reply, :ok, %{state | workers: workers}}
+
+      map_size(state.workers) >= @max_workers ->
+        {:reply, {:error, :worker_limit}, state}
+
+      true ->
+        path = Path.join([state.root, "workers", slug])
+
+        case File.mkdir(path) do
+          :ok ->
+            with :ok <-
+                   File.write(
+                     source_path(state.root, slug),
+                     "# Source lives in your local Midgard project.\n"
+                   ),
+                 :ok <- File.write(Path.join(path, "origin"), "cli\n") do
+              workers = Map.put(state.workers, slug, %{live: nil, busy: true, origin: :cli})
+              {:reply, :ok, %{state | workers: workers}}
+            else
+              _ ->
+                File.rm_rf(path)
+                {:reply, {:error, :cannot_create_worker}, state}
+            end
 
           _ ->
             {:reply, {:error, :cannot_create_worker}, state}
@@ -122,7 +173,7 @@ defmodule Midgard.Platform.Workspace do
 
   def handle_call({:begin_deploy, slug, source}, _from, state) do
     with true <- valid_slug?(slug) and is_binary(source) and byte_size(source) in 1..@max_source,
-         {:ok, item} <- Map.fetch(state.workers, slug),
+         {:ok, %{origin: :local} = item} <- Map.fetch(state.workers, slug),
          false <- item.busy,
          :ok <- save_source(state.root, slug, source) do
       workers = Map.put(state.workers, slug, %{item | busy: true})

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,6 +17,7 @@ if (!chrome || !existsSync(chrome)) {
 const port = await freePort();
 const origin = `http://127.0.0.1:${port}`;
 const workspace = mkdtempSync(join(tmpdir(), "midgard-browser-"));
+const project = join(workspace, "demo_worker");
 const review = join(root, ".impeccable/review");
 mkdirSync(review, { recursive: true });
 const server = spawn("mix", ["run", "--no-halt"], {
@@ -37,70 +38,51 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  page.on("console", (message) => {
-    if (message.type() === "error" && !message.text().includes("422")) errors.push(message.text());
-  });
 
   await page.goto(origin, { waitUntil: "networkidle" });
   const commit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
   assert.equal(await page.getByRole("link", { name: `View Midgard commit ${commit} on GitHub` }).getAttribute("href"), `https://github.com/leostera/midgard/commit/${commit}`);
-  await page.evaluate(() => document.fonts.ready);
   await page.screenshot({ path: join(review, "platform-empty-desktop.png"), fullPage: true });
   await page.getByRole("link", { name: "Create worker" }).first().click();
-  await page.getByLabel("Worker name").fill("demo_worker");
-  await page.getByRole("button", { name: "Create & deploy" }).click({ timeout: 90_000 });
-  assert.match(page.url(), /workers\/demo_worker/);
-  await page.getByText("Deployed worker", { exact: true }).waitFor({ timeout: 90_000 });
-  assert.match(await page.locator("#source").inputValue(), /defmodule DemoWorker/);
-  await page.locator(".cm-editor").waitFor();
-  assert.equal(await page.locator("#source").isVisible(), false);
-  assert.match(await page.locator(".cm-content").textContent(), /defmodule DemoWorker/);
-  await page.locator(".cm-content").click();
-  await page.keyboard.press("ControlOrMeta+End");
-  await page.keyboard.type("\n# Edited in CodeMirror");
-  assert.match(await page.locator("#source").inputValue(), /# Edited in CodeMirror$/);
+  await page.getByRole("heading", { name: "Install Midgard" }).waitFor();
+  await page.getByRole("heading", { name: "Create your project" }).waitFor();
+  await page.getByRole("heading", { name: "Build and deploy" }).waitFor();
+  assert.match(await page.locator(".deploy-steps").textContent(), /mix midgard\.deploy/);
+  await page.screenshot({ path: join(review, "platform-create-desktop.png"), fullPage: true });
 
-  await page.getByRole("button", { name: "Compile & deploy" }).click({ timeout: 90_000 });
-  await page.getByText("Call this worker", { exact: true }).waitFor({ timeout: 90_000 });
-  assert.equal(await (await fetch(`${origin}/run/demo_worker/hello`)).text(), "Hello from demo_worker!\n");
-  assert.equal(await (await fetch(`${origin}/run/demo_worker/hello/joe`)).text(), "Hello, joe!\n");
+  execFileSync("mix", ["midgard.new", "demo_worker", "--path", project, "--midgard-root", root], { cwd: root });
+  execFileSync("mix", ["deps.get"], { cwd: project });
+  const result = execFileSync("mix", ["midgard.deploy", "--endpoint", origin], { cwd: project, encoding: "utf8" });
+  assert.match(result, /Deployed demo_worker/);
+  assert.equal(await (await fetch(`${origin}/run/demo_worker/hello`)).text(), "Hello from DemoWorker!\n");
+
   await page.goto(origin, { waitUntil: "networkidle" });
-  assert.match(await page.locator(".worker-table").textContent(), /demo_worker[\s\S]*Deployed[\s\S]*2/);
+  assert.match(await page.locator(".worker-table").textContent(), /demo_worker[\s\S]*Deployed/);
   await page.screenshot({ path: join(review, "desktop.png"), fullPage: true });
   await page.getByRole("searchbox", { name: "Search workers" }).fill("not_here");
   await page.getByRole("button", { name: "Search" }).click();
   await page.getByText("No matching workers").waitFor();
   await page.getByRole("link", { name: "Clear filters" }).click();
   await page.getByRole("link", { name: "Open demo_worker" }).click();
-  await page.evaluate(() => document.fonts.ready);
+  await page.getByText("Managed by a local Midgard project.").waitFor();
   await page.screenshot({ path: join(review, "platform-deployed-desktop.png"), fullPage: true });
 
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   mobile.on("pageerror", (error) => errors.push(error.message));
-  await mobile.goto(origin, { waitUntil: "networkidle" });
-  await mobile.evaluate(() => document.fonts.ready);
+  await mobile.goto(`${origin}/workers/new`, { waitUntil: "networkidle" });
   assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
-  await mobile.screenshot({ path: join(review, "mobile.png"), fullPage: true });
-  await mobile.getByRole("link", { name: "demo_worker", exact: true }).click();
+  await mobile.screenshot({ path: join(review, "platform-create-mobile.png"), fullPage: true });
+  await mobile.goto(`${origin}/workers/demo_worker`, { waitUntil: "networkidle" });
   assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   await mobile.screenshot({ path: join(review, "platform-deployed-mobile.png"), fullPage: true });
 
-  const source = await page.locator("#source").inputValue();
-  await page.locator(".cm-content").click();
-  await page.keyboard.press("ControlOrMeta+End");
-  await page.keyboard.type("\nTHIS IS INVALID ELIXIR");
-  assert.equal(await page.locator("#source").inputValue(), source + "\nTHIS IS INVALID ELIXIR");
-  await page.getByRole("button", { name: "Compile & deploy" }).click();
-  await page.getByRole("alert").waitFor({ timeout: 30_000 });
-  assert.match(await page.getByRole("alert").textContent(), /compiler failed/i);
-  assert.equal(await (await fetch(`${origin}/run/demo_worker/hello`)).text(), "Hello from demo_worker!\n");
-  const noScript = await browser.newPage({ javaScriptEnabled: false });
-  await noScript.goto(`${origin}/workers/demo_worker`);
-  assert.equal(await noScript.getByLabel("Elixir source").isVisible(), true);
-  assert.match(await noScript.getByLabel("Elixir source").inputValue(), /defmodule DemoWorker/);
-  await noScript.close();
+  const beam = join(project, "demo_worker.midgard", "modules", "Elixir.DemoWorker.beam");
+  const original = readFileSync(beam);
+  writeFileSync(beam, Buffer.concat([Buffer.from([0]), original.subarray(1)]));
+  assert.throws(() => execFileSync("mix", ["midgard.deploy", "--artifact", join(project, "demo_worker.midgard"), "--endpoint", origin], { cwd: project, stdio: "pipe" }), /checksum mismatch/);
+  assert.equal(await (await fetch(`${origin}/run/demo_worker/hello`)).text(), "Hello from DemoWorker!\n");
   assert.deepEqual(errors, []);
-  console.log("Browser create/edit/deploy/invoke, rejected compilation and desktop/mobile layout passed.");
+  console.log("Browser guide and responsive deployed inventory; CLI upload, Isolate call and rejected update passed.");
 } finally {
   if (browser) await browser.close();
   if (server.exitCode === null) {

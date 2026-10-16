@@ -1,44 +1,74 @@
-# Midgard — BEAM workers artifact toolchain
+# Midgard
 
-Midgard compiles trusted Mix, rebar3, and Erlang-target Gleam workers into **versioned, inspectable BEAM artifacts** for a future libbeam host adapter. It does not deploy them or execute them in libbeam. The separate [libbeam runtime](https://github.com/leostera/libbeam/tree/main/libbeam) can now run selected Erlang BEAMs in private Isolates, but **does not support the Elixir/OTP profile used by this example**. An artifact passing Midgard's static checks is not proof of runtime admission, isolation or production security.
+**Write Elixir serverless workers. Package BEAM workers from Elixir, Erlang, or Gleam for libbeam Isolates.**
 
-## Try the toolchain (ordinary Elixir/OTP)
+Midgard is a worker toolchain: start from a Mix, rebar3, or Erlang-target Gleam project, build a versioned artifact containing your worker and its compiled dependencies, and inspect what you would hand to an Isolate host. Each BEAM keeps its original module name; the manifest records the entrypoint, protocol, dependency ownership, compiler provenance, and checksums. This makes a worker's complete code shipment visible instead of hiding it behind a local OTP installation.
 
-Requires Elixir 1.19 and OTP 27+ (`:json`; tested here on OTP 28). No Realm fork or Phoenix service is required.
+**The framework effort is Elixir-first.** Today you can write an Elixir request handler with `Midgard.Worker`. You can also package Erlang and Gleam workers that export their own binary entrypoint, but Midgard does not provide request-handling APIs for those languages. They do not need to use Elixir or imitate its API. The common boundary is the artifact and its declared byte protocol, leaving room for language-specific APIs later. Deployment into libbeam is not shipped yet.
+
+## Write an Elixir worker
+
+The Elixir SDK lets you write a request handler while it provides the binary worker entrypoint:
+
+```elixir
+defmodule MyWorker do
+  use Midgard.Worker
+
+  @impl true
+  def handle_request(%Midgard.Request{method: "GET", path: "/hello"}),
+    do: {200, "Hello!\n"}
+
+  def handle_request(_request), do: {404, "Not found\n"}
+end
+```
+
+Try a complete project (Elixir 1.19 and OTP 27+; tested with OTP 28):
 
 ```sh
-mix test
 cd examples/hello_worker
 mix deps.get
 mix test
-mix midgard.build                   # hello_worker.midgard/
+mix midgard.build
 mix packer.inspect hello_worker.midgard
-mix packer.inspect hello_worker.midgard --target current-core  # intentionally refuses unsupported Elixir features
 ```
 
-`mix packer.pack` is the build-tool alternative using `packer: [entry: HelloWorker]` in `mix.exs`. Both commands compile under the developer's **trusted local authority**; they do not load the BEAMs into a serving VM. A generated project uses `midgard.config.exs` with `[entry: MyWorker, target: :libbeam]`. To scaffold outside the checkout, install the archive or invoke its task from here:
+You'll get `hello_worker.midgard/`, with `manifest.json` and the worker's exact-name BEAM files under `modules/`. Tests exercise the request handler on ordinary OTP; inspection checks the artifact and reports static compatibility information. See the [Elixir worker API](docs/worker-request-api.md) for the request fields and response contract.
+
+Install the CLI from Git with one Mix command (Elixir 1.19+, OTP 28):
 
 ```sh
-cd apps/midgard_cli
-mix archive.build -o /tmp/midgard_cli.ez
-mix archive.install --force /tmp/midgard_cli.ez
-cd /path/where/you/work
-mix midgard.new my_worker --midgard-root /path/to/midgard
-cd my_worker && mix deps.get && mix test && mix midgard.build
+mix archive.install github leostera/midgard --sparse apps/midgard_cli --app midgard_cli
+mix midgard.new my_worker
+cd my_worker && mix deps.get && mix test
+mix midgard.deploy --endpoint http://127.0.0.1:4000
 ```
 
-Generated projects use **absolute path dependencies** into this checkout, not published packages. The generator refuses to overwrite an existing directory. `mix midgard.deploy` and the old Phoenix/Realm runtime were removed; there is no deployment endpoint or local Isolate runner.
+The archive supplies the Mix tasks; the new project fetches its SDK and Packer
+from the **same pinned Git commit**. Archive installation runs source code from
+the repository; review and trust it before installing. To develop against a
+local checkout, pass `--midgard-root /path/to/midgard` to `mix midgard.new`
+instead. Deploying to a local platform requires a matching native libbeam host;
+see [local platform setup](apps/midgard_platform/README.md). The public upload
+endpoint is not enabled yet. The generator never overwrites an existing path.
 
-## Components
+## Bring an Erlang or Gleam worker
 
-- [`apps/midgard`](apps/midgard): worker-facing `Midgard.Worker` and `%Midgard.Request{}` plus `midgard.bytes.v1` bounded binary codec. `use Midgard.Worker` generates `__midgard_call__(binary) :: binary`. No packaging code or host capability bindings belong in the SDK. Request structs and this wrapper are **provisional** and are not currently supported by libbeam's reduced core.
-- [`apps/packer`](apps/packer): builds `<app>.midgard/` from local compiled Mix, rebar3, or Gleam application and dependency BEAMs, preserving each module's exact name. Its `manifest.json` records checksums, ownership, compiler versions, target assumptions, and an entrypoint. `mix packer.inspect` checks structure and reports known unsupported opcodes/imports and unresolved runtime requirements without loading the modules. Native inputs and direct ambient host authority are refused; **static screening is not a security proof**.
-- [`apps/midgard_cli`](apps/midgard_cli): `mix midgard.new` and `mix midgard.build`. No host router, deployer, broker or Isolate caller exists.
-- [`examples/hello_worker`](examples/hello_worker): two project modules plus a pure-Elixir Jason dependency, with real binary-wrapper unit tests on regular OTP.
-- [`examples/gleam_worker`](examples/gleam_worker): Erlang-target Gleam binary worker and locked local production dependency, bundled without the generated CLI launcher.
+| Language/project | What you write | What Midgard packages | Get started |
+| --- | --- | --- | --- |
+| Elixir or mixed Mix | An Elixir `Midgard.Worker` handler, optionally calling Erlang modules | Compiled app and runtime Mix dependencies | [HelloWorker](examples/hello_worker/README.md), [mixed worker](examples/mixed_worker/README.md) |
+| Standalone Erlang/rebar3 | An exported binary-to-binary function with a declared byte protocol | One compiled app and its dependencies | [Erlang worker](examples/erlang_worker/README.md) |
+| Erlang-target Gleam | An exported `BitArray -> BitArray` function with a declared byte protocol | Production Erlang shipment and declared dependencies | [Gleam worker](examples/gleam_worker/README.md) |
 
-Read the [artifact contract and compatibility limits](docs/libbeam-artifact-contract.md), [Packer usage](docs/packer.md), [Hex source-level compatibility inventory](docs/hex-compatibility-inventory.md), [request API](docs/worker-request-api.md), and [Workers/workerd/libbeam comparison](docs/workers-libbeam-comparison.md). [RFD0001](docs/rfds/RFD0001-elixir-edge-runtime-on-beam-realms.md) documents the superseded Realm experiment, not this implementation.
+The [build and inspect guide](docs/packer.md) has the commands for each project type. The [Erlang guide](docs/erlang-projects.md) covers rebar3 and mixed Mix projects. The [to-do example](examples/todo/README.md) shows an Elixir/Erlang worker behind a local HTTP UI on ordinary OTP.
 
-## Trust boundary
+## From artifact to running worker
 
-Packer's local Mix/rebar3/Gleam compilation can execute build scripts and macros **with the developer's host privileges**. Static BEAM validation rejects known direct host-authority imports, corrupt/unlisted files, untrusted paths and obvious native inputs, but cannot prove the absence of dynamic effects or certify an Isolate profile. The manifest explicitly says `"execution":"not_verified"`; no claimed OTP parity, NIF support, ambient filesystem/network access, capability broker, multi-tenancy guarantees, deployment security or libbeam execution follows from an artifact build. The future host must revalidate independently before any private BEAM loading and own all routing, timeouts and granted capabilities.
+`mix midgard.deploy` now builds a complete original-BEAM dependency closure
+locally and uploads it to the **loopback-only** Elixir platform. The platform
+verifies its exact manifest and checksums, admits the group to libbeam, then
+publishes `/run/:worker/...` and shows it as Deployed in the local inventory.
+`mix packer.inspect --target current-core` is a conservative static diagnostic,
+not evidence of native admission. Production storage, anonymous ownership and
+the public deployment endpoint remain unfinished.
+
+Build only trusted source: compilers, dependencies, and macros run with your developer privileges. An execution host will need to independently verify and admit the entire BEAM group and enforce its own resource and authority policy. For maintainers, [RFD0002](docs/rfds/RFD0002-artifact-and-worker-contract.md) specifies the implemented artifact and byte contracts.

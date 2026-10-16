@@ -1,11 +1,12 @@
 defmodule Midgard.Request do
   @moduledoc """
-  A provisional typed HTTP request decoded from a bounded binary invocation.
-  No host resource, PID, or guest filesystem handle is part of this struct.
+  The Elixir worker API's HTTP-shaped request decoded from a bounded binary
+  invocation. No host resource, PID, or guest filesystem handle is part of
+  this struct.
 
   `query_string` excludes the leading `?`. Headers are lowercase `{name, value}`
-  pairs and preserve duplicate names. This API has not run in libbeam: the
-  current additive core does not support maps/structs yet.
+  pairs and preserve duplicate names. This API is tested on ordinary OTP; its
+  complete dependency closure has not run in libbeam.
   """
 
   @enforce_keys [:method, :path]

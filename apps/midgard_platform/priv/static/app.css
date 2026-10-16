@@ -135,6 +135,13 @@ input[type='search']::-webkit-search-cancel-button { cursor: pointer; }
 .error-notice { border: 1px solid #d79aaa; border-radius: 6px; background: #fff4f5; color: #86283e; padding: 14px 17px; margin-bottom: 20px; }
 .error-notice strong { display: block; margin-bottom: 5px; }
 .error-notice pre { margin: 0; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow-y: auto; }
+.deploy-steps { list-style: none; counter-reset: step; margin: 0; padding: 0; max-width: 780px; }
+.deploy-steps li { counter-increment: step; padding: 18px 0 20px; border-bottom: 1px solid var(--line); }
+.deploy-steps h2 { display: flex; align-items: baseline; gap: 12px; margin: 0 0 5px; font-size: 16px; line-height: 1.3; }
+.deploy-steps h2::before { content: counter(step, decimal-leading-zero); color: var(--purple-dark); font-size: 11px; font-variant-numeric: tabular-nums; }
+.deploy-steps p { margin: 0 0 12px 31px; max-width: 65ch; color: var(--muted); }
+.deploy-steps pre { overflow-x: auto; overflow-wrap: anywhere; white-space: pre-wrap; margin: 0 0 0 31px; padding: 13px 15px; border-radius: 5px; background: var(--rail); color: #f0eefb; }
+.deploy-steps code { font: 12px/1.75 ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; }
 @media (max-width: 1060px) {
   .registry-toolbar { align-items: stretch; flex-wrap: wrap; padding: 13px 0; }
   .search-form { width: 100%; }
@@ -173,6 +180,7 @@ input[type='search']::-webkit-search-cancel-button { cursor: pointer; }
   .worker-table th { font-size: 9px; letter-spacing: 0; }
   .worker-table td { height: 48px; }
   .badge { font-size: 10px; }
+  .deploy-steps p, .deploy-steps pre { margin-left: 0; }
   .editor-heading { align-items: flex-start; flex-wrap: wrap; }
   .editor-form textarea { min-height: 410px; padding: 12px; font-size: 12px; }
   .code-editor .cm-editor, .code-editor .cm-scroller { min-height: 410px; }

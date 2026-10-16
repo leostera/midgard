@@ -8,6 +8,11 @@ defmodule PackerTest do
     {:ok, root: root}
   end
 
+  test "rejects malformed pack options at the public boundary" do
+    assert {:error, "expected keyword pack options"} = Packer.pack([:not_an_option])
+    assert {:error, "expected keyword pack options"} = Packer.pack(%{project: "fixture"})
+  end
+
   test "versioned exact-name BEAM artifact is deterministic, inspectable and owned", %{root: root} do
     {entry, beam} = compile_fixture("def __midgard_call__(bytes), do: bytes")
     {helper, helper_beam} = compile_fixture("def hello, do: \"hello\"")
@@ -159,6 +164,19 @@ defmodule PackerTest do
     end
   end
 
+  test "refuses symlink destinations, including dangling links", %{root: root} do
+    {entry, beam} = compile_fixture("def __midgard_call__(bytes), do: bytes")
+    record = %{name: entry, owner: "fixture", bytes: beam}
+    path = Path.join(root, "linked.midgard")
+    File.ln_s!(Path.join(root, "missing.midgard"), path)
+
+    assert {:error, "output cannot be a symlink"} =
+             Packer.Artifact.build(path, "fixture", entry, [record], [])
+
+    assert {:ok, %{type: :symlink}} = File.lstat(path)
+    refute File.exists?(Path.join(root, "missing.midgard"))
+  end
+
   test "a failed rebuild preserves the last verified artifact", %{root: root} do
     {entry, beam} = compile_fixture("def __midgard_call__(bytes), do: bytes")
     path = Path.join(root, "stable.midgard")
@@ -253,7 +271,7 @@ defmodule PackerTest do
            )
 
     assert {:error, reason} = Packer.Profile.current_core_check(path)
-    assert reason =~ "does not admit"
+    assert reason =~ "static current-core preflight blocked"
   end
 
   defp compile_fixture(functions) do

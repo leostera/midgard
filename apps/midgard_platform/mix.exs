@@ -10,6 +10,7 @@ defmodule MidgardPlatform.MixProject do
       deps: [
         {:libbeam_elixir, in_umbrella: true},
         {:midgard, in_umbrella: true},
+        {:packer, in_umbrella: true},
         {:bandit, "~> 1.12"},
         {:plug, "~> 1.18"}
       ]

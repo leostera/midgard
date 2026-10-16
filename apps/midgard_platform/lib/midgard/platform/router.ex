@@ -2,6 +2,7 @@ defmodule Midgard.Platform.Router do
   @moduledoc "Local-only editor, deployment actions and callable worker URLs."
   use Plug.Router
   require Logger
+  alias Packer.ShipmentUpload
   alias Midgard.Platform.{Page, Publisher, Workspace}
 
   plug(:local_request)
@@ -18,7 +19,7 @@ defmodule Midgard.Platform.Router do
   end
 
   get "/workers/new" do
-    html(conn, Page.new_worker(csrf()))
+    html(conn, Page.deploy_guide())
   end
 
   post "/workers" do
@@ -34,6 +35,9 @@ defmodule Midgard.Platform.Router do
 
   get "/workers/:slug" do
     case Workspace.read(slug) do
+      {:ok, %{record: %{origin: :cli} = record}} ->
+        html(conn, Page.uploaded_worker(slug, record, conn.port))
+
       {:ok, %{source: source, record: record}} ->
         html(
           conn,
@@ -55,6 +59,14 @@ defmodule Midgard.Platform.Router do
       {:error, reason, conn} -> deploy_error(conn, slug, reason)
       {:error, reason} -> deploy_error(conn, slug, reason)
       _ -> deploy_error(conn, slug, "source must be text")
+    end
+  end
+
+  post "/api/deployments/:slug" do
+    if System.get_env("MIDGARD_CONTAINER_HTTP") == "1" do
+      send_resp(conn, 503, "public deployment is not enabled yet\n")
+    else
+      upload_shipment(conn, slug)
     end
   end
 
@@ -95,6 +107,60 @@ defmodule Midgard.Platform.Router do
   match _ do
     html(conn, Page.not_found(), 404)
   end
+
+  defp upload_shipment(conn, slug) do
+    with :ok <- upload_request(conn, slug),
+         {:ok, bytes, conn} <- read_request_body(conn, ShipmentUpload.max_wire()),
+         {:ok, %ShipmentUpload{application: ^slug} = upload} <- ShipmentUpload.parse(bytes),
+         {:ok, live} <- Publisher.deploy_uploaded(upload) do
+      body =
+        :json.encode(%{
+          slug: slug,
+          digest: live.digest,
+          modules: live.modules,
+          path: "/run/#{slug}/"
+        })
+        |> IO.iodata_to_binary()
+
+      conn |> put_resp_content_type("application/json") |> send_resp(201, body)
+    else
+      {:error, %Plug.Conn{} = conn} -> send_resp(conn, 413, "shipment upload exceeds 34 MB\n")
+      {:error, :unauthorized} -> send_resp(conn, 401, "deployment token required\n")
+      {:error, reason} -> send_resp(conn, 422, "shipment rejected: #{inspect(reason)}\n")
+      _ -> send_resp(conn, 422, "shipment application does not match worker name\n")
+    end
+  end
+
+  defp upload_request(conn, slug) do
+    content_type = get_req_header(conn, "content-type")
+    token = System.get_env("MIDGARD_DEPLOY_TOKEN")
+    supplied = get_req_header(conn, "authorization")
+
+    cond do
+      not Workspace.valid_slug?(slug) ->
+        {:error, :invalid_name}
+
+      content_type != [ShipmentUpload.content_type()] ->
+        {:error, :invalid_content_type}
+
+      get_req_header(conn, "origin") != [] ->
+        {:error, :browser_upload_not_supported}
+
+      token && (byte_size(token) < 32 or not upload_token?(supplied, token)) ->
+        {:error, :unauthorized}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp upload_token?(["Bearer " <> supplied], expected) do
+    actual = :crypto.hash(:sha256, supplied)
+    wanted = :crypto.hash(:sha256, expected)
+    Plug.Crypto.secure_compare(actual, wanted)
+  end
+
+  defp upload_token?(_, _), do: false
 
   defp invoke(conn, slug, deployment, tail) do
     case read_request_body(conn, 32_768) do

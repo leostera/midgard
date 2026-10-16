@@ -27,6 +27,29 @@ defmodule Midgard.CLI.GeneratorTest do
     end
   end
 
+  test "archive generator pins both build dependencies to one Git revision" do
+    revision = String.duplicate("a", 40)
+
+    destination =
+      Path.join(System.tmp_dir!(), "midgard-git-new-#{System.unique_integer([:positive])}")
+
+    try do
+      assert {:ok, ^destination} =
+               Midgard.CLI.Generator.generate_from_git("git_worker", destination, revision)
+
+      mix = File.read!(Path.join(destination, "mix.exs"))
+      assert length(String.split(mix, ~s(ref: "#{revision}"))) == 3
+      assert mix =~ ~s(subdir: "apps/midgard")
+      assert mix =~ ~s(subdir: "apps/packer")
+      refute mix =~ ":midgard_cli"
+
+      assert {:error, _} =
+               Midgard.CLI.Generator.generate_from_git("bad", "/tmp/unused", "not-a-sha")
+    after
+      File.rm_rf!(destination)
+    end
+  end
+
   test "rejects unsafe names and a missing checkout" do
     root = Midgard.CLI.Generator.default_root()
     assert {:error, _} = Midgard.CLI.Generator.generate("../bad", "/tmp/nope", root)

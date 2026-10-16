@@ -139,20 +139,16 @@ defmodule Packer.Artifact do
   end
 
   defp prepare_destination(output) do
-    parent = Path.dirname(output)
-
-    cond do
-      not File.dir?(parent) ->
-        {:error, "output parent directory does not exist"}
-
-      File.exists?(output) and not File.dir?(output) ->
-        {:error, "output is not a directory"}
-
-      File.exists?(output) and File.lstat!(output).type == :symlink ->
-        {:error, "output cannot be a symlink"}
-
-      true ->
-        :ok
+    if File.dir?(Path.dirname(output)) do
+      case File.lstat(output) do
+        {:error, :enoent} -> :ok
+        {:ok, %{type: :directory}} -> :ok
+        {:ok, %{type: :symlink}} -> {:error, "output cannot be a symlink"}
+        {:ok, _} -> {:error, "output is not a directory"}
+        {:error, reason} -> {:error, "cannot inspect output: #{inspect(reason)}"}
+      end
+    else
+      {:error, "output parent directory does not exist"}
     end
   end
 

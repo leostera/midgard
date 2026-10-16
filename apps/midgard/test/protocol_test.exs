@@ -32,6 +32,12 @@ defmodule Midgard.ProtocolTest do
     assert {:error, :invalid_request} = Protocol.decode_request(<<1, 0>>)
     assert {:error, :invalid_request} = Protocol.decode_request(<<1, 0::size(65_536 * 8)>>)
 
+    {:ok, encoded} = Protocol.request(%Request{method: "GET", path: "/"})
+    assert {:error, :invalid_request} = Protocol.decode_request(encoded <> <<0>>)
+
+    assert {:error, :invalid_request} =
+             Protocol.decode_request(binary_part(encoded, 0, byte_size(encoded) - 1))
+
     assert {:error, :invalid_request} =
              Protocol.request(%Request{method: "GET", path: "/" <> String.duplicate("x", 2050)})
 

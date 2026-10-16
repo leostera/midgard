@@ -29,14 +29,14 @@ defmodule MidgardPlatformRouterTest do
     on_exit(fn -> System.delete_env("MIDGARD_CONTAINER_HTTP") end)
 
     html = response(:get, "/").resp_body
-    assert html =~ "Create worker · Not yet available"
-    refute html =~ "href='/workers/new'"
-    assert html =~ "external compiler and durable deployment recovery"
+    assert html =~ "href='/workers/new'"
+    assert html =~ "Build locally with Midgard"
+    assert response(:get, "/workers/new").resp_body =~ "mix midgard.new hello_worker"
   end
 
   test "the local dashboard creates a worker and escapes source in the editor" do
     assert response(:get, "/").status == 200
-    assert response(:get, "/workers/new").resp_body =~ "Create worker"
+    assert response(:get, "/workers/new").resp_body =~ "mix midgard.deploy"
 
     assert :ok = Workspace.create("hello_local")
 
@@ -173,6 +173,32 @@ defmodule MidgardPlatformRouterTest do
     assert {:error, :invalid_traffic_file} = Workspace.record_invocation("counted")
     assert [%{invocations: nil}] = Workspace.list()
     assert response(:get, "/").resp_body =~ "Invocation history unavailable"
+  end
+
+  test "shipment upload rejects unauthenticated or malformed input before creating a worker" do
+    token = Base.encode16(:crypto.strong_rand_bytes(32), case: :lower)
+    System.put_env("MIDGARD_DEPLOY_TOKEN", token)
+    on_exit(fn -> System.delete_env("MIDGARD_DEPLOY_TOKEN") end)
+
+    url = "http://127.0.0.1/api/deployments/demo"
+    payload = <<"MIDGARD-SHIPMENT-1\n", 0::32, 0::16>>
+
+    unauthenticated =
+      Plug.Test.conn(:post, url, payload)
+      |> Plug.Conn.put_req_header("content-type", Packer.ShipmentUpload.content_type())
+      |> Router.call(Router.init([]))
+
+    assert unauthenticated.status == 401
+    assert Workspace.list() == []
+
+    malformed =
+      Plug.Test.conn(:post, url, payload)
+      |> Plug.Conn.put_req_header("content-type", Packer.ShipmentUpload.content_type())
+      |> Plug.Conn.put_req_header("authorization", "Bearer " <> token)
+      |> Router.call(Router.init([]))
+
+    assert malformed.status == 422
+    assert Workspace.list() == []
   end
 
   test "deployment lock prevents overlapping publishes of the same URL" do

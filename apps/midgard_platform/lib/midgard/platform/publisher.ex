@@ -4,7 +4,8 @@ defmodule Midgard.Platform.Publisher do
   admission. A failed compile or load leaves the preceding revision callable.
   """
   require Logger
-  alias Midgard.Platform.{Compiler, Workspace}
+  alias Packer.ShipmentUpload
+  alias Midgard.Platform.{Compiler, Shipment, Workspace}
 
   def deploy(slug, source) do
     with :ok <- Workspace.begin_deploy(slug, source) do
@@ -15,6 +16,75 @@ defmodule Midgard.Platform.Publisher do
         # The successful branch commits its new handle before leaving this scope.
         release_busy(slug)
       end
+    end
+  end
+
+  def deploy_uploaded(%ShipmentUpload{application: slug} = upload) do
+    with :ok <- Workspace.begin_upload(slug) do
+      try do
+        publish_upload(slug, upload)
+      after
+        release_busy(slug)
+      end
+    end
+  end
+
+  defp publish_upload(slug, upload) do
+    revision = Base.encode16(:crypto.strong_rand_bytes(8), case: :lower)
+    id = "#{slug}-#{revision}"
+    destination = Path.join([Workspace.root(), "artifacts", "#{id}.midgard"])
+
+    try do
+      with :ok <- ShipmentUpload.write(upload, destination),
+           {:ok, shipment} <- Shipment.read(destination),
+           :ok <- uploaded_application(shipment, slug),
+           {:ok, digest} <- admit_upload(id, destination, shipment.digest) do
+        live = %{
+          id: id,
+          digest: digest,
+          modules: length(shipment.modules),
+          artifact: destination,
+          deployed_at: DateTime.utc_now()
+        }
+
+        case Workspace.finish_deploy(slug, {:ok, live}) do
+          {:ok, previous} ->
+            if previous, do: reclaim(previous.id)
+            {:ok, live}
+
+          error ->
+            reclaim(id)
+            error
+        end
+      else
+        {:error, %Libbeam.Error{} = reason} -> {:error, reason.message}
+        {:error, reason} -> {:error, reason}
+        _ -> {:error, "uploaded shipment was rejected"}
+      end
+    after
+      # Only the exact shipment that was admitted is retained. Rejected uploads
+      # cannot be published as a stored but falsely live revision.
+      case Workspace.read(slug) do
+        {:ok, %{record: %{live: %{id: ^id}}}} -> :ok
+        _ -> File.rm_rf(destination)
+      end
+    end
+  end
+
+  defp uploaded_application(%Shipment{application: slug}, slug), do: :ok
+  defp uploaded_application(_, _), do: {:error, "shipment application does not match its URL"}
+
+  defp admit_upload(id, destination, expected) do
+    case Midgard.Platform.deploy(id, destination, defer_denied_nif: true) do
+      {:ok, ^expected} ->
+        {:ok, expected}
+
+      {:ok, _other} ->
+        reclaim(id)
+        {:error, "shipment changed during native admission"}
+
+      error ->
+        error
     end
   end
 

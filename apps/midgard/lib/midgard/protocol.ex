@@ -38,9 +38,9 @@ defmodule Midgard.Protocol do
       when byte_size(bytes) <= @max_bytes and method_size in 1..16 and
              path_size in 1..@max_path and query_size <= @max_query and count <= @max_headers and
              body_size <= @max_body do
-    with <<method::binary-size(method_size), path::binary-size(path_size),
-           query::binary-size(query_size), tail::binary>> <- rest,
-         {:ok, headers, <<body::binary-size(body_size)>>} <- parse_headers(tail, count, [], 0),
+    with <<method::binary-size(^method_size), path::binary-size(^path_size),
+           query::binary-size(^query_size), tail::binary>> <- rest,
+         {:ok, headers, <<body::binary-size(^body_size)>>} <- parse_headers(tail, count, [], 0),
          request = %Request{
            method: method,
            path: path,

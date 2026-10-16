@@ -1,15 +1,33 @@
-# Worker request API — provisional binary bridge
+# Write an Elixir worker
 
-A worker uses `Midgard.Worker`, implements `handle_request(%Midgard.Request{}) :: {integer_status, binary_body}`, and gets a generated binary arity-one `__midgard_call__/1` wrapper. This runs in unit tests on normal OTP. **It has not executed inside libbeam**: the current limited core does not support maps/structs or broad Elixir/OTP imports. The future host would supply/receive byte frames, not Plug connections, PIDs or Erlang terms.
+The first Midgard framework API is for **Elixir**. Use `Midgard.Worker` to write an ordinary Elixir request handler. The SDK turns that handler into a versioned binary entrypoint, so Packer can ship it with your dependencies as a worker artifact. Implement `handle_request/1` with a `%Midgard.Request{}` and return `{status, body}`:
 
-| Field | Representation / limit |
+```elixir
+defmodule MyWorker do
+  use Midgard.Worker
+
+  @impl true
+  def handle_request(%Midgard.Request{method: "GET", path: "/hello"}),
+    do: {200, "Hello!\n"}
+
+  def handle_request(_request), do: {404, "Not found\n"}
+end
+```
+
+The [HelloWorker example](../examples/hello_worker/README.md) shows a complete handler with tests on ordinary Elixir/OTP and a build command. `Midgard.Request` is an Elixir struct with these fields:
+
+| Request field | Accepted value |
 | --- | --- |
-| `method` | Uppercase ASCII letters, 1–16 bytes. No HTTP method routing policy is enforced by the codec. |
-| `path` | Starts with `/`, 1–2048 bytes. URL origin and route mapping belong to a future host. |
-| `query_string` | Raw bytes without leading `?`, up to 2048 bytes. |
-| `headers` | Ordered lowercase ASCII `{name, value}` pairs, duplicates preserved; at most 32 entries and 8192 encoded bytes. Values cannot contain CR/LF. **No control-plane header filtering exists here**; a future host must explicitly decide what to forward. |
-| `body` | Complete binary, up to 32 KiB. No streaming, content decoding or arbitrary body objects. |
+| `method` | Uppercase ASCII, 1–16 bytes |
+| `path` | Starts with `/`, up to 2048 bytes |
+| `query_string` | Raw bytes without `?`, up to 2048 bytes |
+| `headers` | Up to 32 ordered, lowercase-name `{name, value}` pairs; duplicate names are preserved, CR/LF values rejected |
+| `body` | Complete binary, up to 32 KiB |
 
-The `midgard.bytes.v1` request frame is `<<1, method_len::8, path_len::16, query_len::16, header_count::8, body_len::16, method, path, query, headers, body>>` with big-endian lengths. Each header is `<<name_len::8, value_len::16, name, value>>`. The entire frame fits 64 KiB. The response frame is `<<2, status::16, body_len::16, body>>`, with status 100..599, complete body ≤65,531 bytes and no custom headers. No Erlang term deserialization or implicit resources are part of the wire. Invalid request frames yield a bounded 400 response; malformed worker returns or ordinary exceptions yield a bounded 500 response in the provisional wrapper. This does not replace host error isolation or scheduling.
+The generated `__midgard_call__/1` entrypoint speaks `midgard.bytes.v1` with frames of at most 64 KiB. Responses carry a status (100–599) and a complete binary body. The wrapper returns 400 for a malformed request frame and 500 for an invalid handler response or ordinary exception when it can execute. This version keeps the contract small: it does not encode response headers, streams, or implicit JSON.
 
-Unlike Cloudflare Workers' [Fetch handler](https://developers.cloudflare.com/workers/runtime-apis/handlers/fetch/), Midgard has no `env`, `ctx`, streams, `fetch`, async lifetime API, storage bindings, custom response headers or geographic metadata. No filesystem/network access is promised. A future host must design an explicit capability broker, origin/authorization filtering, response header policy, timeouts, resource accounting and admission before this can be an HTTP service. The [artifact manifest](libbeam-artifact-contract.md) always declares `required_capabilities: []` in v1.
+## Scope and runtime status
+
+`Midgard.Request`, `Midgard.Worker`, and `handle_request/1` are Elixir-facing; they are **not** a required in-memory API for Erlang or Gleam. Packer's language-independent handoff is an exported binary-to-binary entrypoint and a declared byte protocol. This leaves future language APIs free to use their own types and conventions without changing the existing Elixir handler.
+
+You can develop and test this API on ordinary OTP and build an inspectable artifact today. The Elixir worker profile has not been executed as a whole in libbeam, and Midgard does not yet provide an HTTP/Isolate host or storage/network bindings. A future host will need its own header policy, deadlines, admission, and error handling. For the exact frame format and implementation invariants, see [RFD0002](rfds/RFD0002-artifact-and-worker-contract.md).

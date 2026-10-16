@@ -1,20 +1,51 @@
-# Packer — versioned BEAM artifacts
+# Package your worker
 
-From a Mix worker project with `packer: [entry: HelloWorker]` in `mix.exs`, run `mix deps.get && mix packer.pack`. Mix's compiled Erlang `src/**/*.erl` modules and Erlang runtime dependencies are included alongside Elixir modules. For a standalone single-app rebar3 project, use `mix packer.pack --project PATH --entry module --function handle --protocol raw.bytes.v1 --rebar3 /path/to/rebar3` from this checkout. For a Gleam project targeting Erlang, use `mix packer.pack --project PATH --gleam --entry module --function handle --protocol raw.bytes.v1` from this checkout (optionally `--gleam-bin PATH`). This exports Gleam's production Erlang shipment and includes every `.app`-declared BEAM from the app and its dependencies, excluding the generated CLI launcher and dev dependencies. Keep `manifest.toml` checked in; native resources and NIFs are not bundled. Generic Packer projects may override their binary arity-one entrypoint with `--function NAME --protocol ID`; this does not import the worker SDK. Or set `[entry: HelloWorker, target: :libbeam]` in `midgard.config.exs` and run `mix midgard.build` for the Midgard protocol. Both write `<app>.midgard/` by default (`--output DIR` overrides it). `mix packer.inspect DIR` verifies and prints static compatibility diagnostics. `mix packer.inspect DIR --target current-core` fails if known unsupported bytecode/imports or unresolved imports remain; even an empty report **cannot establish execution** on a libbeam build.
+Packer turns your compiled Elixir, Erlang, or Gleam worker into an inspectable `<app>.midgard/` artifact: the worker entrypoint, original BEAM names, compiled dependencies, and checksums together in one handoff. Use it to see exactly what a future libbeam Isolate host would need to admit. **Packaging is available across these languages; the Midgard request-handling API is Elixir-only for now.**
 
+You need Elixir 1.19 and OTP 27+ for the tooling, plus rebar3 or Gleam for those project types. Run these commands from the Midgard checkout unless you have installed the CLI in another project.
+
+## Build
+
+### Mix (Elixir or mixed Elixir/Erlang)
+
+In a Mix worker project with `packer: [entry: HelloWorker]` in `mix.exs`:
+
+```sh
+mix deps.get
+mix packer.pack
 ```
-<app>.midgard/
-  manifest.json
-  modules/Elixir.HelloWorker.beam
-  modules/Elixir.HelloWorker.Greeter.beam
-  modules/Elixir.Jason.beam
-  ...
+
+Alternatively, set `[entry: HelloWorker, target: :libbeam]` in `midgard.config.exs` and run `mix midgard.build`. Mix's compiled `lib/**/*.ex`, `src/**/*.erl`, and runtime dependencies are included. You can override a generic binary entrypoint with `--function NAME --protocol ID`.
+
+### Standalone rebar3
+
+```sh
+mix packer.pack --project /path/to/app --entry erlang_worker \
+  --function handle --protocol raw.bytes.v1 --rebar3 /path/to/rebar3
 ```
 
-The [manifest contract](libbeam-artifact-contract.md) specifies `format_version: 1` for Mix/rebar3 and `format_version: 2` for Gleam (OTP/Gleam compiler versions instead of OTP/Elixir), exact entrypoint, dependency ownership and versions, sorted BEAM identities, file lengths and SHA-256 hashes. Every module is included with its original BEAM name; there are no source snippets, encoded comment modules, module renames or global *serving-VM* code-table writes. The on-disk directory is assembled and verified in a temporary sibling before publication. Rebuilds of identical compiled inputs produce byte-identical manifests. Packer does not deploy or invoke libbeam.
+`--rebar3` is optional if `rebar3` is on your PATH. One application per project is supported; rebar3 umbrellas are not. Compiled checkout dependencies are included, but their versions are not lockfile-pinned. See the [Erlang worker example](../examples/erlang_worker/README.md).
 
-**What runs with host authority:** Mix compilation and dependency resolution, including macros, build tasks and dev/test compilation, occur in your normal local OTP instance. Use only trusted sources. Packer rejects direct imports of host filesystem/network/process-control APIs, `:erlang.load_nif`, Elixir `@on_load` and Erlang `-on_load`, plus obvious native/NIF inputs; ordinary compiled Erlang modules and dependencies are allowed. This conservative scan is not a sandbox: dynamic calls, compile-time behavior and transitive OTP effects are not proven absent. No dependency `priv` resources, runtime app startup or config are included; development-only (`runtime: false`) dependencies are omitted. The Midgard SDK itself is packaged as a runtime dependency, **not** assumed to be host-provided.
+### Erlang-target Gleam
 
-**What inspection proves:** the JSON schema, version, file list, no symlinked files, checksums, BEAM internal names, owned dependency module list and exported binary entrypoint agree; it has not loaded or executed modules. Inspection uses OTP's BEAM parser in the *trusted local tooling VM* (which may intern names): it is not a hardened verifier for adversarial uploads. The report identifies known unsupported current-core instructions such as maps and imports of unavailable services. It records `profile_revision` and reports local closures/calls, local PID/reference predicates, messaging and bounded binary operations as **conditionally supported**, not unconditionally unavailable or verified compatible; the native-import snapshot includes the admitted BIF catalog and real protected spawn wrappers. `unresolved_imports` includes OTP/Elixir modules or BIFs that require a separately defined host runtime profile. This is not a complete whitelist of libbeam instructions, not a positive admission result, and not a proof of NIF-freedom. The example's Jason and `%Midgard.Request{}` dependencies produce a structurally valid **but currently unsupported** libbeam target profile.
+```sh
+mix packer.pack --project /path/to/app --gleam --entry amber_worker \
+  --function handle --protocol raw.bytes.v1
+```
 
-See [Erlang projects and hybrid workers](erlang-projects.md) and the [Gleam fixture](../examples/gleam_worker/README.md) for project-specific rules. See the [Workers/workerd comparison](workers-libbeam-comparison.md) for the future host boundary. A host must verify module identities and imports *again*, select a supported compiler/profile, load exact-name BEAM bytes privately, and grant explicit capabilities before any execution; Midgard currently implements no such host.
+Use `--gleam-bin PATH` to choose a compiler. Check in `manifest.toml`; the production Erlang shipment's `.app` lists determine which dependency BEAMs are included. A generated CLI launcher is excluded, but declared dependencies are not. Gleam supplies its own binary entrypoint; this does not import the Elixir worker API. See the [Gleam example](../examples/gleam_worker/README.md).
+
+All three commands write `<app>.midgard/` by default; pass `--output DIR` to choose a destination. The artifact has a `manifest.json` and `modules/` directory. Mix/rebar3 use artifact format v1; Gleam uses v2.
+
+## Inspect
+
+```sh
+mix packer.inspect /path/to/app.midgard
+mix packer.inspect /path/to/app.midgard --target current-core
+```
+
+Inspection checks the manifest, checksums, BEAM identities, dependency ownership, and exported entrypoint, then reports known unsupported operations and unresolved imports. Use `--target current-core` to fail early on static blockers against a pinned libbeam profile. A passing report is useful preflight evidence, **not** a promise of execution on any libbeam revision; the manifest continues to say `execution: not_verified`.
+
+## Before running a worker
+
+Build only sources and dependencies you trust: local compilation executes build scripts and macros with your developer privileges. Packer rejects known direct host-authority imports, NIF loading, `on_load`, and obvious native inputs, but cannot certify dynamic behavior or provide a security sandbox. An Isolate host must recheck and admit the full shipment before execution. Midgard does not deploy or run artifacts yet. [RFD0002](rfds/RFD0002-artifact-and-worker-contract.md) records the format and verifier invariants.

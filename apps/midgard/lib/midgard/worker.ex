@@ -1,11 +1,12 @@
 defmodule Midgard.Worker do
   @moduledoc """
-  Provisional worker behaviour and binary entrypoint for future libbeam Isolates.
+  Elixir worker behaviour and binary entrypoint for a future libbeam host.
 
   `use Midgard.Worker` generates `__midgard_call__/1`: a binary-to-binary,
-  arity-one function suitable for the proposed Isolate `start`/`call` contract.
-  It decodes a bounded request and invokes `handle_request/1`. This compiles
-  on ordinary OTP; it has **not** been executed in libbeam.
+  arity-one function. It decodes a bounded request and invokes the Elixir
+  `handle_request/1` callback. The artifact/byte entrypoint does not require
+  Erlang or Gleam workers to use this Elixir API. This SDK is tested on ordinary
+  OTP; its complete dependency closure has not executed in libbeam.
   """
 
   @callback handle_request(Midgard.Request.t()) :: {integer(), binary()}

@@ -7,6 +7,9 @@ defmodule Packer.Profile do
   @host_modules ~w(file os prim_file gen_tcp gen_udp inet ssl httpc rpc net_kernel code erl_eval erl_scan erl_parse)a ++
                   [File, System, Port, IO, Node, Mix, RPC]
   @unavailable_modules ~w(ets persistent_term application)a ++ [Code]
+  # These standard-library BEAMs contain host-only functions unreachable to a
+  # supported guest; native libbeam, not static imports, enforces capabilities.
+  @runtime_owners ~w(erts kernel stdlib elixir compiler syntax_tools iex crypto logger)
   # Snapshot of the actual bounded profile, not generic opcode presence as authority.
   @profile_revision "libbeam:b023b770"
   @unavailable_ops ~w(get_map_elements put_map_assoc put_map_exact has_map_fields is_map new_map make_fun2 is_port)a
@@ -37,12 +40,15 @@ defmodule Packer.Profile do
       path = Path.join(dir, module["path"])
 
       with {:ok, entries} <- imports(path),
-           :ok <- reject_on_load(path) do
-        case Enum.find(entries, &host_import?/1) do
-          nil ->
+           :ok <- reject_on_load(path, module["owner"] in @runtime_owners) do
+        case {module["owner"] in @runtime_owners, Enum.find(entries, &host_import?/1)} do
+          {_, nil} ->
             {:cont, :ok}
 
-          {from, function, arity} ->
+          {true, _} ->
+            {:cont, :ok}
+
+          {false, {from, function, arity}} ->
             {:halt,
              {:error, "host-authority import #{from}:#{function}/#{arity} in #{module["name"]}"}}
         end
@@ -83,7 +89,7 @@ defmodule Packer.Profile do
         sample = (blockers ++ unresolved) |> Enum.take(3) |> Enum.join("; ")
 
         {:error,
-         "current libbeam core does not admit this artifact: #{length(blockers)} known unsupported, " <>
+         "static current-core preflight blocked this artifact: #{length(blockers)} known unsupported, " <>
            "#{length(unresolved)} unresolved imports (e.g. #{sample}); run without --target for details"}
       end
     end
@@ -166,11 +172,11 @@ defmodule Packer.Profile do
   defp opcode(instruction) when is_tuple(instruction), do: elem(instruction, 0)
   defp opcode(instruction), do: instruction
 
-  defp reject_on_load(path) do
+  defp reject_on_load(path, trusted_runtime?) do
     with {:ok, {_module, [attributes: attrs]}} <-
            :beam_lib.chunks(String.to_charlist(path), [:attributes]),
          {:ok, instructions} <- opcodes(path) do
-      if Keyword.has_key?(attrs, :on_load) or :on_load in instructions,
+      if not trusted_runtime? and (Keyword.has_key?(attrs, :on_load) or :on_load in instructions),
         do: {:error, "on_load module initialization is not supported: #{path}"},
         else: :ok
     else

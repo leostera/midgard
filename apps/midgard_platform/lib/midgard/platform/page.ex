@@ -19,11 +19,7 @@ defmodule Midgard.Platform.Page do
         else: "Your local worker inventory"
       ),
       "</p></div>",
-      if(System.get_env("MIDGARD_CONTAINER_HTTP") == "1",
-        do:
-          "<span class='button secondary' aria-disabled='true'>Create worker · Not yet available</span></section>",
-        else: "<a class='button primary' href='/workers/new'>Create worker</a></section>"
-      ),
+      "<a class='button primary' href='/workers/new'>Create worker</a></section>",
       "<section class='registry' aria-label='Worker inventory'>",
       "<div class='registry-toolbar'><form class='search-form' action='/' method='get' role='search'>",
       "<label class='sr-only' for='worker-search'>Search workers</label>",
@@ -50,12 +46,22 @@ defmodule Midgard.Platform.Page do
         else: table(visible, filters, page, pages, length(matching))
       ),
       "</section>",
-      if(System.get_env("MIDGARD_CONTAINER_HTTP") == "1",
-        do:
-          "<p class='footnote'>Public creation is paused until the external compiler and durable deployment recovery are connected.</p>",
-        else:
-          "<p class='footnote'>Invocation counts are per worker across redeployments. They include valid requests routed to a live worker, including failures. Local development only.</p>"
-      )
+      "<p class='footnote'>Build locally with Midgard, then deploy a verified shipment. A stored package is not live until native admission succeeds.</p>"
+    ])
+  end
+
+  def deploy_guide do
+    layout("Create worker", [
+      crumb("New worker"),
+      "<section class='page-head detail-head'><div><h1>Create worker</h1><p>Write and build on your machine. Deploy only the resulting BEAM shipment.</p></div></section>",
+      "<ol class='deploy-steps'>",
+      "<li><h2>Install Midgard</h2><p>Requires Elixir and OTP 28. Install the Mix tasks directly from the Git repository. Review and trust the source before installing an archive.</p>",
+      "<pre><code>mix archive.install github leostera/midgard --sparse apps/midgard_cli --app midgard_cli</code></pre></li>",
+      "<li><h2>Create your project</h2><p>The generated worker pins its SDK and packer dependencies to the same Git revision as your CLI.</p>",
+      "<pre><code>mix midgard.new hello_worker\ncd hello_worker\nmix deps.get\nmix test</code></pre></li>",
+      "<li><h2>Build and deploy</h2><p>The CLI compiles locally, uploads unchanged BEAMs and waits for the server to verify and admit them.</p>",
+      "<pre><code>mix midgard.deploy</code></pre></li></ol>",
+      "<p class='footnote'>The Git archive command needs this version published to GitHub; the public upload API is not open yet. To test locally, first run the platform from a checkout with its matching native libbeam host, then use <code>mix midgard.deploy --endpoint http://127.0.0.1:4000</code>. A deployment is not live until the server confirms admission.</p>"
     ])
   end
 
@@ -69,6 +75,37 @@ defmodule Midgard.Platform.Page do
       "<label for='name'>Worker name</label><input id='name' name='name' type='text' required autofocus maxlength='40' pattern='[a-z][a-z0-9_]*' placeholder='hello_world' autocomplete='off' aria-describedby='name-help'>",
       "<p id='name-help' class='field-help'>Lowercase letters, numbers and underscores. Starts with a letter.</p>",
       "<div class='form-actions'><button class='button primary' type='submit'>Create &amp; deploy</button><a class='button quiet' href='/'>Cancel</a></div></form>"
+    ])
+  end
+
+  def uploaded_worker(slug, record, port) do
+    origin =
+      if System.get_env("MIDGARD_CONTAINER_HTTP") == "1",
+        do: "https://midgard.leostera.dev",
+        else: "http://127.0.0.1:#{port}"
+
+    route = "#{origin}/run/#{slug}/"
+
+    layout(slug, [
+      crumb(slug),
+      "<section class='page-head detail-head'><div><h1>",
+      safe(slug),
+      "</h1><p>Managed by a local Midgard project.</p></div></section>",
+      if(record.live,
+        do: [
+          "<section class='live-panel' aria-label='Live deployment'><div class='call-details'><div class='live-label'><span class='status-dot' aria-hidden='true'></span> Deployed worker</div>",
+          "<h2>Call this worker</h2><p>Use the routes implemented by your project.</p><code class='endpoint'>",
+          safe(route),
+          "</code></div><dl class='deployment-meta'><div><dt>Modules</dt><dd>",
+          Integer.to_string(record.live.modules),
+          " BEAMs</dd></div><div><dt>Shipment</dt><dd><code>",
+          safe(String.slice(record.live.digest, 0, 12)),
+          "</code></dd></div></dl></section>"
+        ],
+        else:
+          "<div class='hint'>This worker is not admitted after the server restart. Redeploy the exact project shipment before calling it.</div>"
+      ),
+      "<p>To publish a new version from your project, run <code>mix midgard.deploy</code>.</p>"
     ])
   end
 
@@ -307,7 +344,7 @@ defmodule Midgard.Platform.Page do
 
   defp empty do
     if System.get_env("MIDGARD_CONTAINER_HTTP") == "1" do
-      "<div class='empty-state'><h2>No public workers yet</h2><p>Creation is paused until verified shipments can be safely admitted and recovered after restarts.</p></div>"
+      "<div class='empty-state'><h2>No public workers yet</h2><p>Build locally, then deploy an exact BEAM shipment.</p><a href='/workers/new'>View setup steps</a></div>"
     else
       "<div class='empty-state'><h2>No workers yet</h2><p>Create your first worker to write source, deploy to an Isolate, and call its local route.</p><a href='/workers/new'>Create your first worker</a></div>"
     end

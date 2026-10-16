@@ -40,4 +40,4 @@ mix packer.inspect todo_worker.midgard
 mix packer.inspect todo_worker.midgard --target current-core
 ```
 
-The final `--target current-core` command is **expected to fail**, naming the unsupported Elixir/process/OTP imports. The artifact is a versioned, inspectable handoff with exact-name Elixir and Erlang BEAMs, not an executable local host. Neither this hybrid worker nor its state process has been run inside libbeam. `rebar3` is needed for the separate standalone Erlang fixture, not for this Mix example; see [Erlang project support](../../docs/erlang-projects.md).
+The final `--target current-core` command is **expected to fail** with static blockers. The artifact is a versioned, inspectable handoff with exact-name Elixir and Erlang BEAMs, not an executable local host. Neither this hybrid worker nor its state process has been run inside libbeam. `rebar3` is needed for the separate standalone Erlang fixture, not for this Mix example; see [Erlang project support](../../docs/erlang-projects.md).

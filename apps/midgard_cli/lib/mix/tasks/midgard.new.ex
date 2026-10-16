@@ -10,9 +10,9 @@ defmodule Mix.Tasks.Midgard.New do
       mix midgard.new hello_worker
       mix midgard.new hello_worker --path /path/to/hello_worker
 
-  Until the packages are published, generated dependencies point to the local
-  Midgard checkout. Override its location with `--midgard-root PATH`.
-  Install the CLI as a Mix archive to use this task outside a project.
+  An archive installed from GitHub generates projects pinned to the archive's
+  exact Git revision. Use `--midgard-root PATH` to work against a local checkout
+  instead (including uncommitted development changes).
   """
 
   @impl true
@@ -23,12 +23,24 @@ defmodule Mix.Tasks.Midgard.New do
     case {positional, invalid} do
       {[name], []} ->
         destination = options[:path] || name
-        root = options[:midgard_root] || Midgard.CLI.Generator.default_root()
 
-        case Midgard.CLI.Generator.generate(name, destination, root) do
+        created =
+          case options[:midgard_root] do
+            nil ->
+              Midgard.CLI.Generator.generate_from_git(
+                name,
+                destination,
+                Midgard.CLI.Generator.archive_revision()
+              )
+
+            root ->
+              Midgard.CLI.Generator.generate(name, destination, root)
+          end
+
+        case created do
           {:ok, path} ->
             Mix.shell().info(
-              "Created #{path}\nNext: cd #{path} && mix deps.get && mix test && mix midgard.build"
+              "Created #{path}\nNext: cd #{path} && mix deps.get && mix test && mix midgard.deploy"
             )
 
           {:error, reason} ->

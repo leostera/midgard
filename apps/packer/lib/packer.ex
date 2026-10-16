@@ -9,10 +9,14 @@ defmodule Packer do
   def pack(opts \\ [])
 
   def pack(opts) when is_list(opts) do
-    cond do
-      opts[:gleam] == true -> Packer.Gleam.pack(opts)
-      Keyword.has_key?(opts, :project) -> Packer.Rebar3.pack(opts)
-      true -> pack_mix(opts)
+    if Keyword.keyword?(opts) do
+      cond do
+        opts[:gleam] == true -> Packer.Gleam.pack(opts)
+        Keyword.has_key?(opts, :project) -> Packer.Rebar3.pack(opts)
+        true -> pack_mix(opts)
+      end
+    else
+      {:error, "expected keyword pack options"}
     end
   end
 
@@ -25,7 +29,19 @@ defmodule Packer do
 
     with :ok <- validate_mix_options(app, entry, output),
          {:ok, local} <- local_modules(app),
-         {:ok, dependencies} <- Packer.Dependencies.collect() do
+         {:ok, dependencies} <- Packer.Dependencies.collect(),
+         {:ok, modules, dep_records} <- mix_modules(app, local, dependencies, opts) do
+      Packer.Artifact.build(output, to_string(app), module_name(entry), modules, dep_records,
+        function: Keyword.get(opts, :function, "__midgard_call__"),
+        protocol: Keyword.get(opts, :protocol, "midgard.bytes.v1")
+      )
+    end
+  end
+
+  defp mix_modules(app, local, dependencies, opts) do
+    if opts[:runtime_closure] do
+      Packer.RuntimeClosure.collect(to_string(app), local, dependencies)
+    else
       modules =
         Enum.map(local, fn {name, bytes} -> %{name: name, owner: to_string(app), bytes: bytes} end) ++
           for dep <- dependencies,
@@ -37,10 +53,7 @@ defmodule Packer do
           %{app: dep.app, version: dep.version, modules: Enum.map(dep.beams, &elem(&1, 0))}
         end)
 
-      Packer.Artifact.build(output, to_string(app), module_name(entry), modules, dep_records,
-        function: Keyword.get(opts, :function, "__midgard_call__"),
-        protocol: Keyword.get(opts, :protocol, "midgard.bytes.v1")
-      )
+      {:ok, modules, dep_records}
     end
   end
 

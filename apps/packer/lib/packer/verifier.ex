@@ -40,35 +40,43 @@ defmodule Packer.Verifier do
   end
 
   defp validate_manifest(m) do
-    modules = m["modules"]
-    deps = m["dependencies"]
-    entry = m["entrypoint"]
-    target = m["target"]
-    compiler = m["compiler"]
-
-    if is_map(m) and sorted_keys(m) == @manifest_keys and m["format"] == "midgard.beam" and
-         valid_compiler?(m["format_version"], compiler) and identifier?(m["application"]) and
-         is_list(modules) and length(modules) in 1..@max_modules and
-         Enum.all?(modules, &(is_map(&1) and is_binary(&1["name"]))) and
-         is_list(deps) and is_map(entry) and is_map(target) and is_map(compiler) and
-         m["required_capabilities"] == [] and
-         sorted_keys(entry) == ~w(arity function module protocol) and
-         entry["arity"] == 1 and is_binary(entry["module"]) and
-         String.match?(entry["module"], @module_pattern) and
-         is_binary(entry["function"]) and
-         String.match?(entry["function"], ~r/\A[a-z_][a-z0-9_]*\z/) and
-         is_binary(entry["protocol"]) and
-         String.match?(entry["protocol"], ~r/\A[a-z][a-z0-9_.-]{0,63}\z/) and
-         target == %{
-           "runtime" => "libbeam",
-           "contract" => "provisional-isolate-v1",
-           "execution" => "not_verified"
-         } and valid_dependencies?(deps) do
+    if valid_manifest_fields?(m) and valid_entrypoint?(m["entrypoint"]) and
+         valid_dependencies?(m["dependencies"]) do
       :ok
     else
       {:error, "invalid artifact schema or unsupported capabilities"}
     end
   end
+
+  defp valid_manifest_fields?(m) when is_map(m) do
+    modules = m["modules"]
+
+    sorted_keys(m) == @manifest_keys and m["format"] == "midgard.beam" and
+      valid_compiler?(m["format_version"], m["compiler"]) and
+      identifier?(m["application"]) and is_list(modules) and
+      length(modules) in 1..@max_modules and
+      Enum.all?(modules, &(is_map(&1) and is_binary(&1["name"]))) and
+      is_list(m["dependencies"]) and m["required_capabilities"] == [] and
+      m["target"] == %{
+        "runtime" => "libbeam",
+        "contract" => "provisional-isolate-v1",
+        "execution" => "not_verified"
+      }
+  end
+
+  defp valid_manifest_fields?(_), do: false
+
+  defp valid_entrypoint?(entry) when is_map(entry) do
+    sorted_keys(entry) == ~w(arity function module protocol) and
+      entry["arity"] == 1 and is_binary(entry["module"]) and
+      String.match?(entry["module"], @module_pattern) and
+      is_binary(entry["function"]) and
+      String.match?(entry["function"], ~r/\A[a-z_][a-z0-9_]*\z/) and
+      is_binary(entry["protocol"]) and
+      String.match?(entry["protocol"], ~r/\A[a-z][a-z0-9_.-]{0,63}\z/)
+  end
+
+  defp valid_entrypoint?(_), do: false
 
   defp valid_compiler?(1, %{"otp_release" => otp, "elixir_version" => elixir} = fields),
     do:
