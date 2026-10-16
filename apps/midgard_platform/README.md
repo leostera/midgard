@@ -44,7 +44,12 @@ boundary; do not bind the HTTP service publicly.
 The compiler resolves the exact imported BEAM closure from its *own* pinned
 Elixir/OTP installation, packages original names with SHA-256 records and
 compiler-image provenance, and the host checks the shipment separately before
-libbeam's atomic whole-group admission. Each deployment gets its own Isolate
+libbeam's atomic whole-group admission. **This is not a passing
+`Packer.Verifier` static report**: its conservative whole-bundle host-import
+screen rejects e.g. an `Elixir.Application` → `Elixir.IO` import in the pinned
+runtime closure. The loader's admission and the observed invoked routes are
+separate evidence; bundling a provider does not grant the guest denied host
+authority. Each deployment gets its own Isolate
 at libbeam's default **256 MiB / 10 million work units** policy. The demo
 worker produced 341 unmodified BEAMs and answered GET `/hello` in an Isolate.
 A Port/Engine crash invalidates every handle and clears the live URL mapping.
