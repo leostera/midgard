@@ -54,11 +54,15 @@ at libbeam's default **256 MiB / 10 million work units** policy. The demo
 worker produced 341 unmodified BEAMs and answered GET `/hello` in an Isolate.
 A Port/Engine crash invalidates every handle and clears the live URL mapping.
 
-The existing `examples/hello_worker/hello_worker.midgard/` is still only a
-32-BEAM incomplete artifact and will not be silently completed by the
-platform. The browser flow creates a *new* complete artifact from the
-pinned compiler container. No Hex-published native ABI, production artifact
-store, multi-user authentication or general remote upload API is claimed.
+The editor currently supports a named Elixir module, nested modules, the
+`Midgard.Worker` SDK, and modules available in its pinned Elixir/OTP image.
+**Hex dependencies such as Jason are not installed** in this compiler image;
+those imports fail closed rather than borrowing host libraries. The existing
+`examples/hello_worker/hello_worker.midgard/` is still only a 32-BEAM
+incomplete artifact and will not be silently completed by the platform. The
+browser flow creates a *new* complete artifact from the pinned compiler
+container. No Hex-published native ABI, production artifact store, multi-user
+authentication or general remote upload API is claimed.
 
 ## Tests
 
