@@ -32,8 +32,10 @@ accepts a bounded binary shipment (`POST /api/deployments/:slug`); the serving
 VM parses and verifies the manifest and checksums and admits the group without
 compiling source. An invalid update leaves the old live Isolate callable.
 `MIDGARD_DEPLOY_TOKEN` can be set on both CLI and server to require a shared
-token during local tests. The public API remains **closed**; local uncredentialed
-uploads work only on loopback, never in Container HTTP mode.
+token during local tests. The public Container API instead accepts uploads
+only from its DO gateway with a server-generated immutable route and a private
+internal key. The public CLI never needs a deployment token. Ordinary direct
+uploads to the Container are rejected.
 
 Open **http://127.0.0.1:4000** and click **Create worker** for these steps.
 After deploying, the Workers inventory lists the worker as Deployed and its
@@ -93,8 +95,9 @@ incomplete artifact and will not be silently completed by the platform. The
 browser flow creates a *new* complete artifact from the pinned compiler
 container. The CLI instead builds its closure on the developer's machine; this
 can include Mix dependencies, but each worker must still pass libbeam
-admission. No Hex-published native ABI, production artifact store, multi-user
-authentication or **public** upload API is claimed.
+admission. No Hex-published native ABI or multi-user authentication is claimed. The
+public demo's edge DO durably stores exact uploaded shipments and re-admits
+them after Container restart, but does not provide private worker ownership.
 
 ## Tests
 

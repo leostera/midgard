@@ -40,16 +40,22 @@ Install the CLI from Git with one Mix command (Elixir 1.19+, OTP 28):
 mix archive.install github leostera/midgard --sparse apps/midgard_cli --app midgard_cli
 mix midgard.new my_worker
 cd my_worker && mix deps.get && mix test
-mix midgard.deploy --endpoint http://127.0.0.1:4000
+mix midgard.deploy
+# Copy the Route printed above and append hello, for example:
+curl https://midgard.leostera.dev/run/my_worker_0123456789abcdef/hello
 ```
 
 The archive supplies the Mix tasks; the new project fetches its SDK and Packer
 from the **same pinned Git commit**. Archive installation runs source code from
 the repository; review and trust it before installing. To develop against a
 local checkout, pass `--midgard-root /path/to/midgard` to `mix midgard.new`
-instead. Deploying to a local platform requires a matching native libbeam host;
-see [local platform setup](apps/midgard_platform/README.md). The public upload
-endpoint is not enabled yet. The generator never overwrites an existing path.
+instead. The default deploy target is `https://midgard.leostera.dev`; no token
+or account is required. Each deploy gets a **new, immutable public route**, printed
+by the CLI and listed on the dashboard. The shared demo is limited to 32 live
+shipments and 24 MB per upload; there is no authenticated ownership or overwrite.
+Use `--endpoint http://127.0.0.1:4000` for a local platform with a matching
+native libbeam host; see [local platform setup](apps/midgard_platform/README.md).
+The generator never overwrites an existing path.
 
 ## Bring an Erlang or Gleam worker
 
@@ -64,11 +70,14 @@ The [build and inspect guide](docs/packer.md) has the commands for each project 
 ## From artifact to running worker
 
 `mix midgard.deploy` now builds a complete original-BEAM dependency closure
-locally and uploads it to the **loopback-only** Elixir platform. The platform
-verifies its exact manifest and checksums, admits the group to libbeam, then
-publishes `/run/:worker/...` and shows it as Deployed in the local inventory.
-`mix packer.inspect --target current-core` is a conservative static diagnostic,
-not evidence of native admission. Production storage, anonymous ownership and
-the public deployment endpoint remain unfinished.
+locally and uploads it to the public Elixir platform through a rate-limited edge
+Worker. The platform verifies its exact manifest and checksums, admits the group
+to libbeam, then publishes `/run/:route/...` and shows it as Deployed in the
+public inventory. The edge stores the exact shipment durably and re-verifies and
+re-admits it after a Container restart before serving it again. No server-side
+source compilation or per-call Container exec is involved. `mix packer.inspect
+--target current-core` is a conservative static diagnostic, not evidence of
+native admission. Anonymous demo routes are immutable, not private accounts;
+this is not a production tenant-isolation or availability guarantee.
 
 Build only trusted source: compilers, dependencies, and macros run with your developer privileges. An execution host will need to independently verify and admit the entire BEAM group and enforce its own resource and authority policy. For maintainers, [RFD0002](docs/rfds/RFD0002-artifact-and-worker-contract.md) specifies the implemented artifact and byte contracts.

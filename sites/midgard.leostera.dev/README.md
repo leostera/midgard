@@ -7,19 +7,22 @@ Durable Object lifecycle/port binding, not another application server. The
 Worker limits requests and forwards allowed HTTP paths to Bandit through its
 private TCP port. No `container.exec()` runs for a visitor request.
 
-**Current public scope: read-only inventory.** Public writes remain closed. The
-existing `Midgard.Platform.Router` handles the dashboard and its static assets;
-it has not been replaced by another API. Its Create action still calls the
-trusted-local `Midgard.Platform.Compiler`, which requires a local Docker daemon
-and cannot run inside this Container. Its workspace is also ephemeral after
-Container shutdown, and native Isolate handles are lost after BEAM restarts.
-Rate limiting does not solve either problem. Do not mark a revision Deployed
-until its exact stored shipment has been re-verified and admitted into libbeam.
+**Public demo: tokenless uploads and calls.** The edge accepts bounded binary
+shipments from `mix midgard.deploy`, gives each upload a random immutable route,
+and forwards it with a DO-managed internal key to the existing
+`Midgard.Platform.Router`. The DO persists exact shipment bytes in SQLite; a
+fresh Container must independently verify and re-admit every stored shipment
+before the dashboard or call routes become available. Browser source editing
+and compilation remain local-only. Anonymous routes are publicly callable; no
+account, update/delete authority, private tenant isolation or uptime guarantee
+is implied. The shared demo admits at most 32 workers, a 24 MB upload, and two
+uploads per client IP per minute. HTTP requests are rate limited separately.
 
 Docker builds the deployment image **outside** Cloudflare. No Docker daemon or
 Docker-in-Docker is required or supplied inside the running Container. The
 base amd64 image was built from pinned source; `deploy/runtime/edge-http/`
-overlays only pure Elixir BEAMs compiled with the matching Elixir/OTP version.
+overlays the compiled Elixir platform and Packer modules with matching
+Elixir/OTP, without building or compiling in the serving Container.
 
 ```sh
 cd sites/midgard.leostera.dev
