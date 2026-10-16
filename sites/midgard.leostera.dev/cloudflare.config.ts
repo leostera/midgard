@@ -28,7 +28,6 @@ export default defineConfig({
 		},
 		exports: {
 			NativeRuntime: exports.durableObject({ storage: "sqlite", container: platform }),
-			CompilerJob: exports.durableObject({ state: "deleted" }),
 		},
 	},
 });
