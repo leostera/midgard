@@ -15,8 +15,12 @@ iex -S mix
 ```
 
 Open **http://127.0.0.1:4000**, click **Create worker**, enter a lowercase
-name, edit the starter source and click **Compile & deploy**. The page shows
-the live URL, e.g. `http://127.0.0.1:4000/run/hello_world/hello`. The full-height
+name, edit the starter source and click **Compile & deploy**. The source editor
+uses a locally bundled CodeMirror with Elixir highlighting; without JavaScript,
+the ordinary textarea remains usable. The page shows the live example URL,
+e.g. `http://127.0.0.1:4000/run/hello_world/hello/joe` (which responds
+`Hello, joe!`). The sidebar links the checkout's current Git commit to GitHub.
+The full-height
 Workers view has a Compute → Workers sidebar, server-side search, status filters,
 sortable columns, and 25-worker pages; it shows real invocation totals and last
 invocation times for routed HTTP requests. The path
@@ -87,6 +91,7 @@ Chrome installed:
 ```sh
 cd apps/midgard_platform
 npm ci
+npm run build:editor
 CHROME_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" npm run test:browser
 ```
 

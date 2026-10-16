@@ -1,6 +1,6 @@
 defmodule MidgardPlatformRouterTest do
   use ExUnit.Case, async: false
-  alias Midgard.Platform.{Router, Traffic, Workspace}
+  alias Midgard.Platform.{BuildInfo, Router, Traffic, Workspace}
 
   setup do
     root =
@@ -33,8 +33,14 @@ defmodule MidgardPlatformRouterTest do
 
     assert {:ok, %{source: source}} = Workspace.read("hello_local")
     assert source =~ "defmodule HelloLocal do"
+    assert source =~ ~S(path: "/hello/" <> name)
+    assert source =~ ~S(Hello, #{name}!)
 
-    assert response(:get, "/workers/hello_local").resp_body =~ "Compile &amp; deploy"
+    editor = response(:get, "/workers/hello_local")
+    assert editor.resp_body =~ "Compile &amp; deploy"
+    assert editor.resp_body =~ "src='/assets/editor.js'"
+    refute response(:get, "/").resp_body =~ "src='/assets/editor.js'"
+    assert response(:get, "/assets/editor.js").status == 200
 
     html =
       Midgard.Platform.Page.editor(
@@ -47,6 +53,22 @@ defmodule MidgardPlatformRouterTest do
 
     refute html =~ "</textarea><script>"
     assert html =~ "&lt;/textarea&gt;&lt;script&gt;"
+  end
+
+  test "sidebar links to the current Midgard GitHub commit and omits invalid checkout data", %{
+    root: root
+  } do
+    assert %{sha: sha, short: short, url: url} = BuildInfo.current_commit()
+    assert Regex.match?(~r/\A[0-9a-f]{40}\z/, sha)
+    assert short == String.slice(sha, 0, 7)
+    assert url == "https://github.com/leostera/midgard/commit/" <> sha
+
+    html = response(:get, "/").resp_body
+    assert html =~ "href='#{url}'"
+    assert html =~ "Commit <code>#{short}</code>"
+    refute html =~ "Local workspace"
+
+    assert BuildInfo.current_commit(root) == nil
   end
 
   test "invalid forms and cross-host requests cannot create or compile workers" do

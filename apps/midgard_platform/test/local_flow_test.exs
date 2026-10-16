@@ -31,6 +31,12 @@ if System.get_env("MIDGARD_COMPILER_IMAGE") == "1" do
       assert {:ok, <<2, 200::16, 24::16, "Hello from hello_local!\n">>} =
                Midgard.Platform.call(first.id, get)
 
+      assert {:ok, named_request} =
+               Midgard.Protocol.request(%Midgard.Request{method: "GET", path: "/hello/joe"})
+
+      assert {:ok, named_reply} = Midgard.Platform.call(first.id, named_request)
+      assert {:ok, {200, "Hello, joe!\n"}} = Midgard.Protocol.decode_response(named_reply)
+
       updated =
         String.replace(
           source,

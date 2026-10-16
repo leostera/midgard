@@ -1,6 +1,7 @@
 defmodule Midgard.Platform.Page do
   @moduledoc false
   alias Plug.HTML
+  alias Midgard.Platform.BuildInfo
 
   @page_size 25
 
@@ -57,7 +58,7 @@ defmodule Midgard.Platform.Page do
     ])
   end
 
-  def editor(slug, source, record, token, port, error \\ nil) do
+  def editor(slug, source, record, token, port, error \\ nil, style_nonce \\ "") do
     live = record.live
 
     status =
@@ -67,36 +68,42 @@ defmodule Midgard.Platform.Page do
         true -> "Draft"
       end
 
-    address = "http://127.0.0.1:#{port}/run/#{slug}/hello"
+    address = "http://127.0.0.1:#{port}/run/#{slug}/hello/joe"
 
-    layout(slug, [
-      crumb(slug),
-      "<section class='page-head detail-head'><div><div class='title-row'><h1>",
-      safe(slug),
-      "</h1><span class='badge #{if live, do: "live", else: "draft"}'>",
-      status,
-      "</span></div>",
-      "<p>Write <code>handle_request/1</code>, then compile and deploy to a libbeam Isolate.</p></div></section>",
-      error_notice(error),
-      if(live,
-        do: live_panel(address, live),
-        else:
-          "<div class='hint'>Not deployed yet. Edit the source below, then deploy to make the route callable.</div>"
-      ),
-      "<form method='post' action='/workers/",
-      safe(slug),
-      "/deploy' class='editor-form'>",
-      hidden_token(token),
-      "<div class='editor-heading'><div><label for='source'>Elixir source</label><p>Changes are saved when you deploy. Macros run inside the isolated compiler container.</p></div>",
-      "<button class='button primary' type='submit'",
-      if(record.busy, do: " disabled", else: ""),
-      ">Compile &amp; deploy</button></div>",
-      "<textarea id='source' name='source' wrap='off' spellcheck='false' autocapitalize='off' autocomplete='off' autocorrect='off' required aria-describedby='editor-note'>",
-      safe(source),
-      "</textarea>",
-      "<div id='editor-note' class='editor-footer'><span>Elixir · max 64 KiB</span><span>One worker module and its nested modules</span></div></form>",
-      "<p class='footnote'>Trusted local workspace · An existing deployment stays callable if this revision fails.</p>"
-    ])
+    layout(
+      slug,
+      [
+        crumb(slug),
+        "<section class='page-head detail-head'><div><div class='title-row'><h1>",
+        safe(slug),
+        "</h1><span class='badge #{if live, do: "live", else: "draft"}'>",
+        status,
+        "</span></div>",
+        "<p>Write <code>handle_request/1</code>, then compile and deploy to a libbeam Isolate.</p></div></section>",
+        error_notice(error),
+        if(live,
+          do: live_panel(address, live),
+          else:
+            "<div class='hint'>Not deployed yet. Edit the source below, then deploy to make the route callable.</div>"
+        ),
+        "<form method='post' action='/workers/",
+        safe(slug),
+        "/deploy' class='editor-form'>",
+        hidden_token(token),
+        "<div class='editor-heading'><div><label for='source'>Elixir source</label><p>Changes are saved when you deploy. Macros run inside the isolated compiler container.</p></div>",
+        "<button class='button primary' type='submit'",
+        if(record.busy, do: " disabled", else: ""),
+        ">Compile &amp; deploy</button></div>",
+        "<textarea id='source' name='source' wrap='off' spellcheck='false' autocapitalize='off' autocomplete='off' autocorrect='off' required aria-describedby='editor-note'>",
+        safe(source),
+        "</textarea><div id='code-editor' class='code-editor' data-style-nonce='",
+        safe(style_nonce),
+        "' hidden></div>",
+        "<div id='editor-note' class='editor-footer'><span>Elixir · max 64 KiB</span><span>One worker module and its nested modules</span></div></form>",
+        "<p class='footnote'>Trusted local workspace · An existing deployment stays callable if this revision fails.</p>"
+      ],
+      true
+    )
   end
 
   def not_found do
@@ -303,7 +310,7 @@ defmodule Midgard.Platform.Page do
       "' target='_blank' rel='noopener noreferrer'>",
       safe(address),
       "</a>",
-      "<p>Open this URL or call it with curl. The path after the worker name becomes the worker's request path.</p></div>",
+      "<p>Try another name in place of joe, or call this URL with curl.</p></div>",
       "<div class='deployment-meta'><span>",
       Integer.to_string(live.modules),
       " BEAMs</span><span>SHA ",
@@ -332,20 +339,44 @@ defmodule Midgard.Platform.Page do
     ]
   end
 
+  defp commit_link do
+    case BuildInfo.current_commit() do
+      %{sha: sha, short: short, url: url} ->
+        [
+          "<a class='commit-link' href='",
+          safe(url),
+          "' target='_blank' rel='noopener noreferrer' aria-label='View Midgard commit ",
+          safe(sha),
+          " on GitHub' title='Commit ",
+          safe(short),
+          "'><svg aria-hidden='true' viewBox='0 0 16 16' width='14' height='14' fill='none'><path d='M1 8h4m6 0h4' stroke='currentColor' stroke-width='1.5'/><circle cx='8' cy='8' r='3' stroke='currentColor' stroke-width='1.5'/></svg><span>Commit <code>",
+          safe(short),
+          "</code></span></a>"
+        ]
+
+      nil ->
+        "<span class='commit-unavailable'>Unversioned checkout</span>"
+    end
+  end
+
   defp hidden_token(token), do: ["<input type='hidden' name='csrf' value='", safe(token), "'>"]
   defp safe(value), do: HTML.html_escape_to_iodata(value)
 
-  defp layout(title, content) do
+  defp layout(title, content, editor_script \\ false) do
     IO.iodata_to_binary([
       "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>",
       "<meta name='color-scheme' content='light'><title>",
       safe(title),
       " · Midgard</title>",
-      "<link rel='icon' type='image/svg+xml' href='/assets/favicon.svg'><link rel='stylesheet' href='/assets/app.css'></head><body>",
+      "<link rel='icon' type='image/svg+xml' href='/assets/favicon.svg'><link rel='stylesheet' href='/assets/app.css'>",
+      if(editor_script, do: "<script defer src='/assets/editor.js'></script>", else: ""),
+      "</head><body>",
       "<div class='shell'><aside class='sidebar' aria-label='Product navigation'>",
       "<a class='brand' href='/' aria-label='Midgard workers'><span class='brand-emblem' aria-hidden='true'>m</span><span>midgard</span></a>",
       "<nav aria-label='Tools'><div class='nav-group'>Compute</div><a class='nav-link' href='/' aria-current='page'>Workers<span class='nav-indicator' aria-hidden='true'></span></a></nav>",
-      "<div class='sidebar-spacer'></div><div class='local-chip'><span aria-hidden='true'></span>Local workspace</div></aside>",
+      "<div class='sidebar-spacer'></div><div class='local-chip'>",
+      commit_link(),
+      "</div></aside>",
       "<main class='main' id='main-content'>",
       content,
       "</main></div></body></html>"

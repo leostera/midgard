@@ -95,10 +95,10 @@ Controls and selected navigation use restrained five-pixel corners. Content pane
 
 ## Components
 
-- **Navigation:** Compute is a group label and Workers is its only shipped destination. Active state uses a muted purple fill and a small violet marker. It never lists worker instances.
+- **Navigation:** Compute is a group label and Workers is its only shipped destination. Active state uses a muted purple fill and a small violet marker. The footer links the checked-out Midgard commit to GitHub; it never masquerades as a deployment-health indicator or lists worker instances.
 - **Table:** A ruled header and thin row dividers carry name, real status, count, last invocation and route prefix. Sort links, status filters, search and pagination are server-rendered and usable without JavaScript. The worker name and Open link lead to the same editor.
 - **Buttons and inputs:** Purple fill for the primary action; white or quiet-field for secondary controls. Search and form fields retain explicit labels and visible purple keyboard focus.
-- **Source and deployment:** A deep-rail-colored code surface anchors the editor. A pale deployment strip shows the callable URL only after native admission; failed edits leave the prior URL visible and working.
+- **Source and deployment:** A deep-rail-colored CodeMirror surface adds Elixir syntax, gutters, active-line focus and search. A plain textarea remains the no-JavaScript form fallback. A pale deployment strip shows a callable example URL only after native admission; failed edits leave the prior URL visible and working.
 
 ## Do's and Don'ts
 

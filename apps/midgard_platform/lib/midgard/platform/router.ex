@@ -35,7 +35,10 @@ defmodule Midgard.Platform.Router do
   get "/workers/:slug" do
     case Workspace.read(slug) do
       {:ok, %{source: source, record: record}} ->
-        html(conn, Page.editor(slug, source, record, csrf(), conn.port))
+        html(
+          conn,
+          Page.editor(slug, source, record, csrf(), conn.port, nil, conn.assigns.style_nonce)
+        )
 
       _ ->
         html(conn, Page.not_found(), 404)
@@ -58,6 +61,11 @@ defmodule Midgard.Platform.Router do
   get "/assets/app.css" do
     path = Application.app_dir(:midgard_platform, "priv/static/app.css")
     conn |> put_resp_content_type("text/css") |> send_resp(200, File.read!(path))
+  end
+
+  get "/assets/editor.js" do
+    path = Application.app_dir(:midgard_platform, "priv/static/editor.js")
+    conn |> put_resp_content_type("text/javascript") |> send_resp(200, File.read!(path))
   end
 
   get "/assets/favicon.svg" do
@@ -140,7 +148,11 @@ defmodule Midgard.Platform.Router do
   defp deploy_error(conn, slug, reason) do
     case Workspace.read(slug) do
       {:ok, %{source: source, record: record}} ->
-        html(conn, Page.editor(slug, source, record, csrf(), conn.port, reason), 422)
+        html(
+          conn,
+          Page.editor(slug, source, record, csrf(), conn.port, reason, conn.assigns.style_nonce),
+          422
+        )
 
       _ ->
         html(conn, Page.not_found(), 404)
@@ -190,13 +202,16 @@ defmodule Midgard.Platform.Router do
   end
 
   defp local_request(conn, _options) do
+    nonce = Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
+
     conn =
       conn
+      |> assign(:style_nonce, nonce)
       |> put_resp_header("x-content-type-options", "nosniff")
       |> put_resp_header("referrer-policy", "no-referrer")
       |> put_resp_header(
         "content-security-policy",
-        "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+        "default-src 'self'; img-src 'self'; style-src 'self' 'nonce-#{nonce}'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
       )
 
     if conn.host in ["127.0.0.1", "localhost"] do

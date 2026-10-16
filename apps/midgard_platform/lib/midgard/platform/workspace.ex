@@ -186,6 +186,14 @@ defmodule Midgard.Platform.Workspace do
         {200, "Hello from #{slug}!\\n"}
       end
 
+      def handle_request(%Midgard.Request{path: "/hello/" <> name}) do
+        if name != "" and not String.contains?(name, "/") do
+          {200, "Hello, \#{name}!\\n"}
+        else
+          {404, "Not found\\n"}
+        end
+      end
+
       def handle_request(_request), do: {404, "Not found\\n"}
     end
     """
