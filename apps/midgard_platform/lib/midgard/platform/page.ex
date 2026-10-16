@@ -167,9 +167,11 @@ defmodule Midgard.Platform.Page do
 
   defp call_instructions(:raw, route) do
     [
-      "<h2>Call this worker</h2><p>POST raw bytes to the route root. The response contains raw bytes, not an HTTP worker protocol message.</p><code class='endpoint'>",
+      "<h2>Call this worker</h2><p>Open a text preview in your browser: GET sends <code>hello</code> through this raw-byte Isolate and displays its response as text. For exact binary input and output, POST to the route root.</p><code class='endpoint'>",
       safe(route),
-      "</code><div class='curl-example'><code>curl -X POST -H 'Content-Type: application/octet-stream' --data-binary 'hello' '",
+      "</code><div class='invoke-action'><a class='button primary' href='",
+      safe(route),
+      "' target='_blank' rel='noopener'>Open text preview</a></div><div class='curl-example'><code>curl -X POST -H 'Content-Type: application/octet-stream' --data-binary 'hello' '",
       safe(route),
       "'</code></div>"
     ]
@@ -290,11 +292,23 @@ defmodule Midgard.Platform.Page do
       ),
       "</td>",
       "<td class='open-cell'>",
-      "<a class='details-link' href='/workers/",
-      safe(worker.slug),
-      "' aria-label='Open details for ",
-      safe(worker.slug),
-      "'>Details</a></td></tr>"
+      if(get_in(worker, [:live, :protocol]) == :raw,
+        do: [
+          "<a href='/run/",
+          safe(worker.slug),
+          "/' target='_blank' rel='noopener' aria-label='Preview raw-byte worker ",
+          safe(worker.slug),
+          " as text'>Preview</a>"
+        ],
+        else: [
+          "<a class='details-link' href='/workers/",
+          safe(worker.slug),
+          "' aria-label='Open details for ",
+          safe(worker.slug),
+          "'>Details</a>"
+        ]
+      ),
+      "</td></tr>"
     ]
   end
 

@@ -213,11 +213,17 @@ defmodule Midgard.Platform.Router do
 
   defp invoke(conn, slug, deployment, :raw, tail) do
     cond do
-      tail != [] or conn.query_string != "" ->
+      tail != [] ->
         send_resp(conn, 404, "raw worker accepts only the route root\n")
 
+      conn.method == "GET" ->
+        preview_raw(conn, slug, deployment)
+
       conn.method != "POST" ->
-        conn |> put_resp_header("allow", "POST") |> send_resp(405, "POST required\n")
+        conn |> put_resp_header("allow", "GET, POST") |> send_resp(405, "GET or POST required\n")
+
+      conn.query_string != "" ->
+        send_resp(conn, 400, "POST raw bytes without a query string\n")
 
       true ->
         case read_request_body(conn, 32_768) do
@@ -271,6 +277,39 @@ defmodule Midgard.Platform.Router do
         send_resp(conn, 413, "request body exceeds 32 KiB\n")
     end
   end
+
+  defp preview_raw(conn, slug, deployment) do
+    with {:ok, input} <- preview_input(conn.query_string),
+         {:ok, reply} when is_binary(reply) and byte_size(reply) <= 65_536 <-
+           call_worker(slug, deployment, input) do
+      display =
+        if String.valid?(reply) and String.printable?(reply),
+          do: reply,
+          else: "Binary response (hex): " <> Base.encode16(reply, case: :lower) <> "\n"
+
+      conn |> put_resp_content_type("text/plain", "utf-8") |> send_resp(200, display)
+    else
+      {:error, :invalid_preview} -> send_resp(conn, 400, "use ?input=your-text (at most 1 KiB)\n")
+      {:error, :not_deployed} -> send_resp(conn, 503, "worker is restarting\n")
+      _ -> send_resp(conn, 502, "worker invocation failed\n")
+    end
+  end
+
+  defp preview_input(""), do: {:ok, "hello"}
+
+  defp preview_input(query) when byte_size(query) <= 1_024 do
+    case Plug.Conn.Query.decode(query, %{}, validate_utf8: true) do
+      %{"input" => input} = fields when map_size(fields) == 1 and is_binary(input) ->
+        {:ok, input}
+
+      _ ->
+        {:error, :invalid_preview}
+    end
+  rescue
+    _ -> {:error, :invalid_preview}
+  end
+
+  defp preview_input(_), do: {:error, :invalid_preview}
 
   defp call_worker(slug, deployment, bytes) do
     result = Midgard.Platform.call(deployment, bytes)

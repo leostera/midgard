@@ -65,7 +65,7 @@ defmodule Mix.Tasks.Midgard.Deploy do
   defp call_hint(manifest_bytes, route_prefix) do
     case :json.decode(manifest_bytes) do
       %{"entrypoint" => %{"protocol" => "raw.bytes.v1"}} ->
-        "Raw-byte example: curl -X POST --data-binary 'hello' '#{route_prefix}'"
+        "Browser text preview: GET #{route_prefix}\nRaw-byte example: curl -X POST --data-binary 'hello' '#{route_prefix}'"
 
       _ ->
         "Append a path implemented by your worker (generated workers use GET #{route_prefix}hello)"

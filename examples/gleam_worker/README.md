@@ -22,4 +22,4 @@ curl -X POST -H 'Content-Type: application/octet-stream' \
 # hello
 ```
 
-The raw-byte route accepts only `POST` at its root with at most 32 KiB of request bytes and returns `application/octet-stream`; it does not implement `GET /hello`. Each new deployment receives a new immutable route. This fixture's successful execution does not guarantee that another Gleam project's full library closure runs in libbeam.
+Open the [live browser preview](https://midgard.leostera.dev/run/amber_worker_16f327441c6fc766/) to see `hello` as text. Midgard's HTTP adapter sends those sample bytes through the raw-byte Isolate; the worker itself does not implement HTTP or `GET /hello`. Add `?input=your-text` to preview another short UTF-8 input. Exact binary calls use `POST` at the route root with at most 32 KiB of request bytes and return `application/octet-stream`. Each new deployment receives a new immutable route. This fixture's successful execution does not guarantee that another Gleam project's full library closure runs in libbeam.

@@ -167,12 +167,14 @@ defmodule MidgardPlatformRouterTest do
     refute details =~ "Try GET /hello"
 
     raw_details = Midgard.Platform.Page.uploaded_worker("z_erlang", erlang, 4000)
-    assert raw_details =~ "POST raw bytes"
+    assert raw_details =~ "Open text preview"
+    assert raw_details =~ "POST to the route root"
     assert raw_details =~ "--data-binary 'hello'"
+    assert sorted =~ "href='/run/z_erlang/'"
     assert raw_details =~ "http://127.0.0.1:4000/run/z_erlang/"
   end
 
-  test "raw-byte workers accept bounded binary POSTs at their route root", %{root: root} do
+  test "raw-byte workers serve a text GET preview and bounded exact binary POSTs", %{root: root} do
     source = Path.join(root, "raw_echo.erl")
     File.write!(source, "-module(raw_echo).\n-export([handle/1]).\nhandle(Bytes) -> Bytes.\n")
     assert {:ok, :raw_echo, beam} = :compile.file(String.to_charlist(source), [:binary])
@@ -216,23 +218,40 @@ defmodule MidgardPlatformRouterTest do
 
     assert Plug.Conn.get_resp_header(reply, "content-type") == ["application/octet-stream"]
 
-    method = Plug.Test.conn(:get, route) |> Router.call(Router.init([]))
+    preview = Plug.Test.conn(:get, route) |> Router.call(Router.init([]))
+    assert preview.status == 200
+    assert preview.resp_body == "hello"
+    assert Plug.Conn.get_resp_header(preview, "content-type") == ["text/plain; charset=utf-8"]
+
+    named = Plug.Test.conn(:get, route <> "?input=Hello%20Joe") |> Router.call(Router.init([]))
+    assert named.status == 200
+    assert named.resp_body == "Hello Joe"
+
+    binary = Plug.Test.conn(:get, route <> "?input=%00") |> Router.call(Router.init([]))
+    assert binary.status == 200
+    assert binary.resp_body == "Binary response (hex): 00\n"
+
+    method = Plug.Test.conn(:put, route) |> Router.call(Router.init([]))
     assert method.status == 405
-    assert Plug.Conn.get_resp_header(method, "allow") == ["POST"]
+    assert Plug.Conn.get_resp_header(method, "allow") == ["GET, POST"]
 
     assert Plug.Test.conn(:post, route <> "hello", input)
            |> Router.call(Router.init([]))
            |> Map.get(:status) == 404
 
+    assert Plug.Test.conn(:get, route <> "?q=1")
+           |> Router.call(Router.init([]))
+           |> Map.get(:status) == 400
+
     assert Plug.Test.conn(:post, route <> "?q=1", input)
            |> Router.call(Router.init([]))
-           |> Map.get(:status) == 404
+           |> Map.get(:status) == 400
 
     assert Plug.Test.conn(:post, route, :binary.copy("x", 32_769))
            |> Router.call(Router.init([]))
            |> Map.get(:status) == 413
 
-    assert [%{invocations: 1}] = Workspace.list()
+    assert [%{invocations: 4}] = Workspace.list()
 
     old_container = System.get_env("MIDGARD_CONTAINER_HTTP")
     old_key = System.get_env("MIDGARD_INTERNAL_UPLOAD_KEY")
