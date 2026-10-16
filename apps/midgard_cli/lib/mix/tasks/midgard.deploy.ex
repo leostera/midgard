@@ -25,10 +25,16 @@ defmodule Mix.Tasks.Midgard.Deploy do
     endpoint =
       endpoint!(options[:endpoint] || System.get_env("MIDGARD_ENDPOINT") || @default_endpoint)
 
+    if endpoint.host == "midgard.leostera.dev" do
+      Mix.raise(
+        "Public deployment is not enabled yet on midgard.leostera.dev; a token will not fix this"
+      )
+    end
+
     token = System.get_env("MIDGARD_DEPLOY_TOKEN")
 
     if is_nil(token) and endpoint.host not in ["localhost", "127.0.0.1"] do
-      Mix.raise("Set MIDGARD_DEPLOY_TOKEN before deploying to a remote host")
+      Mix.raise("Set MIDGARD_DEPLOY_TOKEN before deploying to a custom remote host")
     end
 
     path = options[:artifact] || options[:output] || "#{Mix.Project.config()[:app]}.midgard"
