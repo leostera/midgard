@@ -4,7 +4,28 @@
 
 Midgard is a worker toolchain: start from a Mix, rebar3, or Erlang-target Gleam project, build a versioned artifact containing your worker and its compiled dependencies, and inspect what you would hand to an Isolate host. Each BEAM keeps its original module name; the manifest records the entrypoint, protocol, dependency ownership, compiler provenance, and checksums. This makes a worker's complete code shipment visible instead of hiding it behind a local OTP installation.
 
-**The framework effort is Elixir-first.** Today you can write an Elixir request handler with `Midgard.Worker`. You can also package Erlang and Gleam workers that export their own binary entrypoint, but Midgard does not provide request-handling APIs for those languages. They do not need to use Elixir or imitate its API. The common boundary is the artifact and its declared byte protocol, leaving room for language-specific APIs later. Deployment into libbeam is not shipped yet.
+**The framework effort is Elixir-first.** Today you can write an Elixir request handler with `Midgard.Worker`. You can also package Erlang and Gleam workers that export their own binary entrypoint, but Midgard does not provide request-handling APIs for those languages. They do not need to use Elixir or imitate its API. The common boundary is the artifact and its declared byte protocol, leaving room for language-specific APIs later.
+
+## Install and deploy
+
+Requires **Elixir 1.19+**, **OTP 28**, and Git. Install or update the CLI from GitHub, then create a worker:
+
+```sh
+mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force
+mix midgard.new hello_world
+cd hello_world
+mix deps.get
+mix test
+mix midgard.deploy
+```
+
+No token or account is needed. Deployment builds on your machine and prints a new, immutable **Route prefix**. Append a path your worker handles; the generated worker responds at `/hello` (and `/`). For example, replace the route ID below with the one printed by your deploy:
+
+```sh
+curl https://midgard.leostera.dev/run/hello_world_0123456789abcdef/hello
+```
+
+Already have a worker project? Reinstall the archive with `--force`, then run `mix midgard.deploy` inside that project. Its original route remains unchanged; a new deploy receives a new route. Archive installation executes code from GitHub; review and trust the source before installing it. The generated project pins its SDK and Packer dependencies to the same Git commit as the installed CLI.
 
 ## Write an Elixir worker
 
@@ -34,28 +55,7 @@ mix packer.inspect hello_worker.midgard
 
 You'll get `hello_worker.midgard/`, with `manifest.json` and the worker's exact-name BEAM files under `modules/`. Tests exercise the request handler on ordinary OTP; inspection checks the artifact and reports static compatibility information. See the [Elixir worker API](docs/worker-request-api.md) for the request fields and response contract.
 
-Install the CLI from Git with one Mix command (Elixir 1.19+, OTP 28):
-
-```sh
-mix archive.install github leostera/midgard --sparse apps/midgard_cli --app midgard_cli
-mix midgard.new my_worker
-cd my_worker && mix deps.get && mix test
-mix midgard.deploy
-# Copy the Route printed above and append hello, for example:
-curl https://midgard.leostera.dev/run/my_worker_0123456789abcdef/hello
-```
-
-The archive supplies the Mix tasks; the new project fetches its SDK and Packer
-from the **same pinned Git commit**. Archive installation runs source code from
-the repository; review and trust it before installing. To develop against a
-local checkout, pass `--midgard-root /path/to/midgard` to `mix midgard.new`
-instead. The default deploy target is `https://midgard.leostera.dev`; no token
-or account is required. Each deploy gets a **new, immutable public route**, printed
-by the CLI and listed on the dashboard. The shared demo is limited to 32 live
-shipments and 24 MB per upload; there is no authenticated ownership or overwrite.
-Use `--endpoint http://127.0.0.1:4000` for a local platform with a matching
-native libbeam host; see [local platform setup](apps/midgard_platform/README.md).
-The generator never overwrites an existing path.
+To develop against a local checkout, pass `--midgard-root /path/to/midgard` to `mix midgard.new`. The default deploy target is `https://midgard.leostera.dev`. The shared demo is limited to 32 live shipments and 24 MB per upload; there is no authenticated ownership or overwrite. Use `--endpoint http://127.0.0.1:4000` for a local platform with a matching native libbeam host; see [local platform setup](apps/midgard_platform/README.md). The generator never overwrites an existing path.
 
 ## Bring an Erlang or Gleam worker
 
