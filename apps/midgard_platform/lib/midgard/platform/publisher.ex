@@ -19,7 +19,9 @@ defmodule Midgard.Platform.Publisher do
     end
   end
 
-  def deploy_uploaded(%ShipmentUpload{application: slug} = upload) do
+  def deploy_uploaded(%ShipmentUpload{application: application} = upload, slug \\ nil) do
+    slug = slug || application
+
     with :ok <- Workspace.begin_upload(slug) do
       try do
         publish_upload(slug, upload)
@@ -37,7 +39,7 @@ defmodule Midgard.Platform.Publisher do
     try do
       with :ok <- ShipmentUpload.write(upload, destination),
            {:ok, shipment} <- Shipment.read(destination),
-           :ok <- uploaded_application(shipment, slug),
+           :ok <- uploaded_application(shipment, upload.application),
            {:ok, digest} <- admit_upload(id, destination, shipment.digest) do
         live = %{
           id: id,

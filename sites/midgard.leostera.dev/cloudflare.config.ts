@@ -25,6 +25,7 @@ export default defineConfig({
 		entrypoint,
 		env: {
 			HTTP_RATE: bindings.rateLimit({ namespace: "1003", simple: { limit: 120, period: 60 } }),
+			DEPLOY_RATE: bindings.rateLimit({ namespace: "1004", simple: { limit: 2, period: 60 } }),
 		},
 		exports: {
 			NativeRuntime: exports.durableObject({ storage: "sqlite", container: platform }),

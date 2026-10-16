@@ -1,14 +1,9 @@
 defmodule Midgard.CLI.DeployTest do
   use ExUnit.Case, async: true
 
-  test "public deployment reports the closed route instead of asking for a token" do
+  test "custom remote hosts still require their own deployment credentials" do
     assert_raise Mix.Error,
-                 "Public deployment is not enabled yet on midgard.leostera.dev; a token will not fix this",
-                 fn ->
-                   Mix.Tasks.Midgard.Deploy.run([
-                     "--endpoint",
-                     "https://midgard.leostera.dev"
-                   ])
-                 end
+                 "Set MIDGARD_DEPLOY_TOKEN before deploying to a custom remote host",
+                 fn -> Mix.Tasks.Midgard.Deploy.run(["--endpoint", "https://example.net"]) end
   end
 end

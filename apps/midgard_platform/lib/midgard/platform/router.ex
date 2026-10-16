@@ -63,11 +63,7 @@ defmodule Midgard.Platform.Router do
   end
 
   post "/api/deployments/:slug" do
-    if System.get_env("MIDGARD_CONTAINER_HTTP") == "1" do
-      send_resp(conn, 503, "public deployment is not enabled yet\n")
-    else
-      upload_shipment(conn, slug)
-    end
+    upload_shipment(conn, slug)
   end
 
   get "/assets/app.css" do
@@ -109,16 +105,16 @@ defmodule Midgard.Platform.Router do
   end
 
   defp upload_shipment(conn, slug) do
-    with :ok <- upload_request(conn, slug),
+    with {:ok, route} <- upload_request(conn, slug),
          {:ok, bytes, conn} <- read_request_body(conn, ShipmentUpload.max_wire()),
          {:ok, %ShipmentUpload{application: ^slug} = upload} <- ShipmentUpload.parse(bytes),
-         {:ok, live} <- Publisher.deploy_uploaded(upload) do
+         {:ok, live} <- Publisher.deploy_uploaded(upload, route) do
       body =
         :json.encode(%{
-          slug: slug,
+          slug: route,
           digest: live.digest,
           modules: live.modules,
-          path: "/run/#{slug}/"
+          path: "/run/#{route}/"
         })
         |> IO.iodata_to_binary()
 
@@ -131,26 +127,48 @@ defmodule Midgard.Platform.Router do
     end
   end
 
-  defp upload_request(conn, slug) do
-    content_type = get_req_header(conn, "content-type")
-    token = System.get_env("MIDGARD_DEPLOY_TOKEN")
-    supplied = get_req_header(conn, "authorization")
-
+  defp upload_request(conn, app) do
     cond do
-      not Workspace.valid_slug?(slug) ->
+      not Workspace.valid_slug?(app) ->
         {:error, :invalid_name}
 
-      content_type != [ShipmentUpload.content_type()] ->
+      get_req_header(conn, "content-type") != [ShipmentUpload.content_type()] ->
         {:error, :invalid_content_type}
 
       get_req_header(conn, "origin") != [] ->
         {:error, :browser_upload_not_supported}
 
-      token && (byte_size(token) < 32 or not upload_token?(supplied, token)) ->
-        {:error, :unauthorized}
+      System.get_env("MIDGARD_CONTAINER_HTTP") == "1" ->
+        public_upload_route(conn, app)
 
       true ->
-        :ok
+        token = System.get_env("MIDGARD_DEPLOY_TOKEN")
+
+        if token &&
+             (byte_size(token) < 32 or
+                not upload_token?(get_req_header(conn, "authorization"), token)) do
+          {:error, :unauthorized}
+        else
+          {:ok, app}
+        end
+    end
+  end
+
+  defp public_upload_route(conn, app) do
+    gateway = System.get_env("MIDGARD_INTERNAL_UPLOAD_KEY")
+    route = get_req_header(conn, "x-midgard-public-route")
+    supplied = get_req_header(conn, "x-midgard-internal-upload")
+    prefix = String.slice(app, 0, 23) <> "_"
+
+    if is_binary(gateway) and byte_size(gateway) >= 32 and
+         upload_token?(supplied, gateway) and
+         match?([_], route) and
+         String.starts_with?(hd(route), prefix) and
+         Regex.match?(~r/\A[a-z][a-z0-9_]*_[0-9a-f]{16}\z/, hd(route)) and
+         Workspace.valid_slug?(hd(route)) do
+      {:ok, hd(route)}
+    else
+      {:error, :unauthorized}
     end
   end
 

@@ -61,7 +61,7 @@ defmodule Midgard.Platform.Page do
       "<pre><code>mix midgard.new hello_worker\ncd hello_worker\nmix deps.get\nmix test</code></pre></li>",
       "<li><h2>Build and deploy</h2><p>The CLI compiles locally, uploads unchanged BEAMs and waits for the server to verify and admit them.</p>",
       "<pre><code>mix midgard.deploy</code></pre></li></ol>",
-      "<p class='footnote'>The Git archive command needs this version published to GitHub; the public upload API is not open yet. To test locally, first run the platform from a checkout with its matching native libbeam host, then use <code>mix midgard.deploy --endpoint http://127.0.0.1:4000</code>. A deployment is not live until the server confirms admission.</p>"
+      "<p class='footnote'>No account or deployment token needed. Each anonymous deploy receives a new immutable route on midgard.leostera.dev. Edit locally and deploy again for a new route. A shipment is not live until the server verifies and admits it.</p>"
     ])
   end
 

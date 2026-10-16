@@ -14,6 +14,8 @@ if System.get_env("MIDGARD_NATIVE_UPLOAD") == "1" do
       assert {:ok, ^project} = Midgard.CLI.Generator.generate("upload_sample", project, checkout)
 
       original = Application.get_env(:midgard_platform, :workspace)
+      original_container = System.get_env("MIDGARD_CONTAINER_HTTP")
+      original_key = System.get_env("MIDGARD_INTERNAL_UPLOAD_KEY")
       Application.put_env(:midgard_platform, :workspace, workspace)
       {:ok, platform} = Midgard.Platform.start_link()
       {:ok, registry} = Workspace.start_link(root: workspace)
@@ -40,6 +42,14 @@ if System.get_env("MIDGARD_NATIVE_UPLOAD") == "1" do
         if Process.alive?(platform), do: Supervisor.stop(platform)
         if current = Process.whereis(Workspace), do: GenServer.stop(current)
         File.rm_rf!(root)
+
+        if original_container,
+          do: System.put_env("MIDGARD_CONTAINER_HTTP", original_container),
+          else: System.delete_env("MIDGARD_CONTAINER_HTTP")
+
+        if original_key,
+          do: System.put_env("MIDGARD_INTERNAL_UPLOAD_KEY", original_key),
+          else: System.delete_env("MIDGARD_INTERNAL_UPLOAD_KEY")
 
         if original,
           do: Application.put_env(:midgard_platform, :workspace, original),
@@ -74,6 +84,44 @@ if System.get_env("MIDGARD_NATIVE_UPLOAD") == "1" do
       assert index.resp_body =~ "Deployed"
 
       shipment = Path.join(project, "upload_sample.midgard")
+      {:ok, packed} = Packer.ShipmentUpload.read_directory(shipment)
+      gateway = Base.encode16(:crypto.strong_rand_bytes(32), case: :lower)
+      public_slug = "upload_sample_0123456789abcdef"
+      System.put_env("MIDGARD_CONTAINER_HTTP", "1")
+      System.put_env("MIDGARD_INTERNAL_UPLOAD_KEY", gateway)
+
+      unauthorized =
+        Plug.Test.conn(
+          :post,
+          "http://127.0.0.1/api/deployments/upload_sample",
+          Packer.ShipmentUpload.encode(packed)
+        )
+        |> Plug.Conn.put_req_header("content-type", Packer.ShipmentUpload.content_type())
+        |> Midgard.Platform.Router.call(Midgard.Platform.Router.init([]))
+
+      assert unauthorized.status == 401
+
+      public =
+        Plug.Test.conn(
+          :post,
+          "http://127.0.0.1/api/deployments/upload_sample",
+          Packer.ShipmentUpload.encode(packed)
+        )
+        |> Plug.Conn.put_req_header("content-type", Packer.ShipmentUpload.content_type())
+        |> Plug.Conn.put_req_header("x-midgard-public-route", public_slug)
+        |> Plug.Conn.put_req_header("x-midgard-internal-upload", "Bearer " <> gateway)
+        |> Midgard.Platform.Router.call(Midgard.Platform.Router.init([]))
+
+      assert public.status == 201
+      assert %{"slug" => ^public_slug, "path" => "/run/" <> _} = :json.decode(public.resp_body)
+
+      assert Plug.Test.conn(:get, "http://127.0.0.1/run/#{public_slug}/hello")
+             |> Midgard.Platform.Router.call(Midgard.Platform.Router.init([]))
+             |> Map.get(:resp_body) == "Hello from UploadSample!\n"
+
+      System.delete_env("MIDGARD_CONTAINER_HTTP")
+      System.delete_env("MIDGARD_INTERNAL_UPLOAD_KEY")
+
       beam_path = Path.join([shipment, "modules", "Elixir.UploadSample.beam"])
       original_beam = File.read!(beam_path)
       <<_first, tail::binary>> = original_beam
@@ -89,7 +137,9 @@ if System.get_env("MIDGARD_NATIVE_UPLOAD") == "1" do
 
       refute code == 0
       assert error =~ "checksum mismatch"
-      assert [%{live: %{modules: ^modules}, busy: false}] = Workspace.list()
+
+      assert %{live: %{modules: ^modules}, busy: false} =
+               Enum.find(Workspace.list(), &(&1.slug == "upload_sample"))
 
       assert Plug.Test.conn(:get, "http://127.0.0.1/run/upload_sample/hello")
              |> Midgard.Platform.Router.call(Midgard.Platform.Router.init([]))
@@ -98,7 +148,10 @@ if System.get_env("MIDGARD_NATIVE_UPLOAD") == "1" do
       GenServer.stop(registry)
       {:ok, recovered} = Workspace.start_link(root: workspace)
       Process.unlink(recovered)
-      assert [%{slug: "upload_sample", live: nil}] = Workspace.list()
+
+      assert Enum.sort(Enum.map(Workspace.list(), &{&1.slug, &1.live})) ==
+               [{"upload_sample", nil}, {public_slug, nil}]
+
       assert Plug.Test.conn(:get, "http://127.0.0.1/run/upload_sample/hello")
              |> Midgard.Platform.Router.call(Midgard.Platform.Router.init([]))
              |> Map.get(:status) == 404

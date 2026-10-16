@@ -25,15 +25,9 @@ defmodule Mix.Tasks.Midgard.Deploy do
     endpoint =
       endpoint!(options[:endpoint] || System.get_env("MIDGARD_ENDPOINT") || @default_endpoint)
 
-    if endpoint.host == "midgard.leostera.dev" do
-      Mix.raise(
-        "Public deployment is not enabled yet on midgard.leostera.dev; a token will not fix this"
-      )
-    end
-
     token = System.get_env("MIDGARD_DEPLOY_TOKEN")
 
-    if is_nil(token) and endpoint.host not in ["localhost", "127.0.0.1"] do
+    if is_nil(token) and endpoint.host not in ["localhost", "127.0.0.1", "midgard.leostera.dev"] do
       Mix.raise("Set MIDGARD_DEPLOY_TOKEN before deploying to a custom remote host")
     end
 
@@ -59,7 +53,7 @@ defmodule Mix.Tasks.Midgard.Deploy do
         "Deployed #{result["slug"]} · #{result["modules"]} BEAMs · #{url |> URI.parse() |> Map.get(:host)}"
       )
 
-      Mix.shell().info("Route: #{URI.to_string(endpoint)}/run/#{upload.application}/")
+      Mix.shell().info("Route: #{URI.to_string(endpoint)}#{result["path"]}")
     else
       {:error, reason} -> Mix.raise("Midgard deployment failed: #{inspect(reason)}")
     end
@@ -132,9 +126,17 @@ defmodule Mix.Tasks.Midgard.Deploy do
 
   defp parse_response({201, body}, app) do
     case :json.decode(body) do
-      %{"slug" => ^app, "digest" => digest, "modules" => count, "path" => path} = result
-      when is_binary(digest) and is_integer(count) and count in 1..512 and is_binary(path) ->
-        {:ok, result}
+      %{"slug" => slug, "digest" => digest, "modules" => count, "path" => path} = result
+      when is_binary(slug) and is_binary(digest) and is_integer(count) and count in 1..512 and
+             is_binary(path) ->
+        if (slug == app or
+              (String.starts_with?(slug, String.slice(app, 0, 23) <> "_") and
+                 String.match?(slug, ~r/\A[a-z][a-z0-9_]*_[0-9a-f]{16}\z/))) and
+             path == "/run/#{slug}/" and String.match?(digest, ~r/\A[0-9a-f]{64}\z/) do
+          {:ok, result}
+        else
+          {:error, :invalid_deployment_response}
+        end
 
       _ ->
         {:error, :invalid_deployment_response}
