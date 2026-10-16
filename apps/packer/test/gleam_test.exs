@@ -7,7 +7,7 @@ defmodule Packer.GleamTest do
     gleam: true,
     entry: "amber_worker",
     function: "handle",
-    protocol: "raw.bytes.v1"
+    protocol: "midgard.bytes.v1"
   ]
 
   test "production Gleam shipment preserves exact names and locked dependency ownership" do
@@ -29,7 +29,7 @@ defmodule Packer.GleamTest do
                  "arity" => 1,
                  "module" => "amber_worker",
                  "function" => "handle",
-                 "protocol" => "raw.bytes.v1"
+                 "protocol" => "midgard.bytes.v1"
                }
 
         assert Enum.map(manifest["modules"], & &1["name"]) == ["amber_helper", "amber_worker"]

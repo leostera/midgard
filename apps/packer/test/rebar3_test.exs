@@ -8,7 +8,7 @@ defmodule Packer.Rebar3Test do
       project: @project,
       entry: "erlang_worker",
       function: "handle",
-      protocol: "raw.bytes.v1"
+      protocol: "midgard.bytes.v1"
     ]
 
     rebar3 = System.get_env("MIDGARD_REBAR3") || System.find_executable("rebar3")
@@ -25,6 +25,7 @@ defmodule Packer.Rebar3Test do
         assert {:ok, manifest} = Packer.Verifier.verify(output)
         assert manifest["entrypoint"]["module"] == "erlang_worker"
         assert manifest["entrypoint"]["function"] == "handle"
+        assert manifest["entrypoint"]["protocol"] == "midgard.bytes.v1"
         assert Enum.map(manifest["modules"], & &1["name"]) == ["erlang_helper", "erlang_worker"]
 
         assert manifest["dependencies"] ==
@@ -46,7 +47,7 @@ defmodule Packer.Rebar3Test do
     end
   end
 
-  test "rejects missing protocol rather than mislabeling raw Erlang bytes" do
+  test "rejects missing protocol rather than mislabeling HTTP-shaped Erlang bytes" do
     assert {:error, reason} =
              Packer.pack(project: @project, entry: "erlang_worker", function: "handle")
 

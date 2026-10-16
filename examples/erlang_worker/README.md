@@ -1,24 +1,16 @@
-# Erlang-only Packer fixture
+# Erlang HTTP-shaped worker
 
-One rebar3 application (`erlang_worker`) with a pure-Erlang checkout dependency (`erlang_helper`). Requires rebar3; for a temporary local installation, run `MIX_HOME=/tmp/midgard-rebar mix local.rebar --force` and use the installed executable under `/tmp/midgard-rebar/elixir/<elixir-otp>/rebar3`.
+A standalone rebar3 application (`erlang_worker`) calls its pure-Erlang checkout dependency (`erlang_helper`). Its binary `handle/1` parses the same `midgard.bytes.v1` request envelope used by the Elixir SDK and returns the same status/body response envelope. It serves `GET /hello` and `GET /hello/:name`; other routes return 404. The worker runs in libbeam, not an Erlang web server.
+
+Requires rebar3. For a temporary installation, run `MIX_HOME=/tmp/midgard-rebar mix local.rebar --force` and use the installed executable under `/tmp/midgard-rebar/elixir/<elixir-otp>/rebar3`.
 
 ```sh
-rebar3 eunit
 # From the Midgard repository root:
+(cd examples/erlang_worker && /path/to/rebar3 eunit)
 mix packer.pack --project examples/erlang_worker --entry erlang_worker \
-  --function handle --protocol raw.bytes.v1 --rebar3 /path/to/rebar3
+  --function handle --protocol midgard.bytes.v1 --rebar3 /path/to/rebar3
 mix packer.inspect examples/erlang_worker/erlang_worker.midgard
+mix midgard.deploy --artifact examples/erlang_worker/erlang_worker.midgard
 ```
 
-`handle/1` accepts and returns a binary. It is **not** an HTTP worker or the `midgard.bytes.v1` SDK. `rebar3` checkouts have a compiled app version in the manifest but are not lockfile-pinned. A zero-blocker static report alone does not prove execution.
-
-To publish the built artifact, run `mix midgard.deploy --artifact examples/erlang_worker/erlang_worker.midgard` from the repository root. The public host verifies and admits the exact two-module shipment; raw binary calls use `POST` to the route root with at most 32 KiB of request bytes and return `application/octet-stream`; a separate `GET` preview displays small text inputs in the browser. This repository example was deployed and called through libbeam:
-
-```sh
-curl -X POST -H 'Content-Type: application/octet-stream' \
-  --data-binary 'hello' \
-  'https://midgard.leostera.dev/run/erlang_worker_021a8a3f076ceb0b/'
-# hello
-```
-
-Open the [live browser preview](https://midgard.leostera.dev/run/erlang_worker_021a8a3f076ceb0b/) to see `hello` as text. Midgard's HTTP adapter sends those sample bytes through the raw-byte Isolate; the worker itself does not implement HTTP or `GET /hello`. Add `?input=your-text` to preview another short UTF-8 input. A new deployment receives a new immutable route.
+After deploying, append `/hello` or `/hello/joe` to the printed route prefix and open it in a browser. `GET /hello/joe` responds with `Hello from joe\n` as `text/plain`; unlike the earlier raw-byte echo fixture it does **not** return an attachment. Rebar3 checkout dependencies have a compiled version in the manifest but are not lockfile-pinned. The platform verifies the exact shipment and admits its complete BEAM group before reporting it live. A zero-blocker static report alone does not prove execution.

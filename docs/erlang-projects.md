@@ -12,12 +12,12 @@ Install rebar3, then from the Midgard checkout:
 
 ```sh
 mix packer.pack --project examples/erlang_worker --entry erlang_worker \
-  --function handle --protocol raw.bytes.v1
+  --function handle --protocol midgard.bytes.v1
 mix packer.inspect examples/erlang_worker/erlang_worker.midgard
 ```
 
-Export the named arity-one function to accept and return bounded binaries. The [fixture](../examples/erlang_worker/README.md) echoes bytes under the declared `raw.bytes.v1` protocol; this is an application-defined byte contract, separate from the Elixir SDK's HTTP-shaped `midgard.bytes.v1`. Packer reads compiled `.app` metadata to collect one application and its dependencies. Checkout dependency versions are recorded but not lockfile-pinned.
+Export the named arity-one function to accept and return bounded binaries. The [fixture](../examples/erlang_worker/README.md) parses the HTTP-shaped `midgard.bytes.v1` wire format and implements `GET /hello` and `GET /hello/:name`, just like an Elixir SDK worker. Packer reads compiled `.app` metadata to collect one application and its dependencies. Checkout dependency versions are recorded but not lockfile-pinned.
 
 ## Runtime status
 
-Use `mix packer.inspect --target current-core` to see static blockers before deploying. Midgard now accepts and calls standalone Erlang `raw.bytes.v1` workers: `mix midgard.deploy --artifact examples/erlang_worker/erlang_worker.midgard` verifies and admits the full dependency group, then returns an immutable route. Send binary bytes with `POST` to that route root; the response is raw `application/octet-stream`, not an Elixir SDK HTTP response. Opening the route root in a browser uses Midgard's separate `GET` text preview: it sends `hello` into the same raw-byte Isolate and renders the result as text; `?input=your-text` selects a small UTF-8 preview input. See the [fixture](../examples/erlang_worker/README.md) for a live example. This does not supply an Erlang request framework or grant OTP services such as `gen_server` inside libbeam; successful execution of one echo fixture is not proof that another dependency closure is supported.
+Use `mix packer.inspect --target current-core` to see static blockers before deploying. `mix midgard.deploy --artifact examples/erlang_worker/erlang_worker.midgard` verifies and admits the full dependency group, then returns an immutable route. Open that route with `/hello` or `/hello/joe` appended: the host forwards the HTTP-shaped binary request to the Erlang Isolate and returns the status/body it produces as `text/plain`. See the [fixture](../examples/erlang_worker/README.md) for a live example. This does not grant OTP services such as `gen_server` inside libbeam; successful execution of this example is not proof that another dependency closure is supported. The lower-level `raw.bytes.v1` contract remains available to workers that intentionally want opaque binary input/output instead.
