@@ -1,0 +1,15 @@
+defmodule MidgardPlatform.MixProject do
+  use Mix.Project
+
+  def project do
+    [
+      app: :midgard_platform,
+      version: "0.1.0-dev",
+      elixir: "~> 1.19",
+      description: "Isolate deployment and binary dispatch on libbeam_elixir",
+      deps: [{:libbeam_elixir, in_umbrella: true}]
+    ]
+  end
+
+  def application, do: [extra_applications: [:crypto]]
+end
