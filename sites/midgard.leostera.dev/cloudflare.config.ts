@@ -9,7 +9,7 @@ const platform = defineContainer({
 	images: {
 		server: {
 			reference:
-				"registry.cloudflare.com/0f436d2aabf1f872be90b8dd9d5715e6/midgard-http@sha256:51b17ce4c9b7cc03cfd82dc5304fdf72ffa73e8f693d86fd30c7a166bdd1e087",
+				"registry.cloudflare.com/0f436d2aabf1f872be90b8dd9d5715e6/midgard-http@sha256:e61749f27706449787087631108ef1f5f1ebcc7f26f0f92076c4cebb71410d61",
 		},
 	},
 	ssh: { enabled: false },
