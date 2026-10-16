@@ -13,7 +13,9 @@ defmodule Midgard.CLI.GeneratorTest do
       assert File.read!(Path.join(destination, "midgard.config.exs")) =~
                "entry: MyWorker, target: :libbeam"
 
-      assert File.read!(Path.join(destination, "mix.exs")) =~ "packer: [entry: MyWorker]"
+      mix = File.read!(Path.join(destination, "mix.exs"))
+      assert mix =~ "packer: [entry: MyWorker]"
+      assert mix =~ ~s(elixir: "~> 1.21.0-dev")
       assert File.read!(Path.join(destination, "lib/my_worker.ex")) =~ "Midgard.Worker"
 
       assert File.read!(Path.join(destination, "lib/my_worker/greeting.ex")) =~

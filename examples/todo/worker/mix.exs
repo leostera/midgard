@@ -7,7 +7,7 @@ defmodule TodoWorker.MixProject do
     [
       app: :todo_worker,
       version: "0.1.0",
-      elixir: "~> 1.19",
+      elixir: "~> 1.21.0-dev",
       packer: [entry: TodoWorker],
       deps: [
         {:midgard, path: Path.join(@midgard_root, "apps/midgard")},

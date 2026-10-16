@@ -1,0 +1,4 @@
+%{
+  "midgard": {:git, "https://github.com/leostera/midgard.git", "55c3c12c592909a05d67b2a7bdb09c03606e261e", [ref: "55c3c12c592909a05d67b2a7bdb09c03606e261e", subdir: "apps/midgard"]},
+  "packer": {:git, "https://github.com/leostera/midgard.git", "55c3c12c592909a05d67b2a7bdb09c03606e261e", [ref: "55c3c12c592909a05d67b2a7bdb09c03606e261e", subdir: "apps/packer"]},
+}

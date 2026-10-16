@@ -1,0 +1,1 @@
+[entry: HolaMundo, target: :libbeam]

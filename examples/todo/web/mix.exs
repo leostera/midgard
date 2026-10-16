@@ -5,7 +5,7 @@ defmodule TodoWeb.MixProject do
     [
       app: :todo_web,
       version: "0.1.0",
-      elixir: "~> 1.19",
+      elixir: "~> 1.21.0-dev",
       deps: [
         {:todo_worker, path: "../worker"},
         {:bandit, "~> 1.12"},

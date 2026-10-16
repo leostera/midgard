@@ -4,7 +4,7 @@ The `worker` Mix app combines `TodoWorker` (Elixir binary HTTP adapter) with `:t
 
 ## Run the browser UI and JSON API
 
-Requires Elixir 1.19+ and a compatible OTP installation. Run from this repository checkout:
+Requires Elixir 1.21.0-dev and a compatible OTP installation. Run from this repository checkout:
 
 ```sh
 cd examples/todo/web

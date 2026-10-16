@@ -43,7 +43,7 @@ defmodule MyWorker do
 end
 ```
 
-Try a complete project (Elixir 1.19 and OTP 27+; tested with OTP 28):
+Try a complete project (Elixir 1.21.0-dev and OTP 27+; tested with OTP 28):
 
 ```sh
 cd examples/hello_worker
@@ -55,7 +55,29 @@ mix packer.inspect hello_worker.midgard
 
 You'll get `hello_worker.midgard/`, with `manifest.json` and the worker's exact-name BEAM files under `modules/`. Tests exercise the request handler on ordinary OTP; inspection checks the artifact and reports static compatibility information. See the [Elixir worker API](docs/worker-request-api.md) for the request fields and response contract.
 
-To develop against a local checkout, pass `--midgard-root /path/to/midgard` to `mix midgard.new`. The default deploy target is `https://midgard.leostera.dev`. The shared demo is limited to 32 live shipments and 24 MB per upload; there is no authenticated ownership or overwrite. Use `--endpoint http://127.0.0.1:4000` for a local platform with a matching native libbeam host; see [local platform setup](apps/midgard_platform/README.md). The generator never overwrites an existing path.
+Install the CLI from Git with one Mix command (Elixir 1.21.0-dev, OTP 28):
+
+```sh
+mix archive.install github leostera/midgard --sparse apps/midgard_cli --app midgard_cli
+mix midgard.new my_worker
+cd my_worker && mix deps.get && mix test
+mix midgard.deploy
+# Copy the Route printed above and append hello, for example:
+curl https://midgard.leostera.dev/run/my_worker_0123456789abcdef/hello
+```
+
+The archive supplies the Mix tasks; the new project fetches its SDK and Packer
+from the **same pinned Git commit**. Archive installation runs source code from
+the repository; review and trust it before installing. To develop against a
+local checkout, pass `--midgard-root /path/to/midgard` to `mix midgard.new`
+instead. The default deploy target is `https://midgard.leostera.dev`; no token
+or account is required. Each deploy gets a **new, immutable public route**, printed
+by the CLI and listed on the dashboard. The shared demo is limited to 32 live
+shipments and 24 MB per upload; there is no authenticated ownership or overwrite.
+Use `--endpoint http://127.0.0.1:4000` for a local platform with a matching
+native libbeam host; see [local platform setup](apps/midgard_platform/README.md).
+The generator never overwrites an existing path.
+>>>>>>> 2e9461a (feat: upgrade to elixir 1.21.0-dev and new example)
 
 ## Bring an Erlang or Gleam worker
 

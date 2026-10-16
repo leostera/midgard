@@ -5,7 +5,7 @@ defmodule MixedWorker.MixProject do
     [
       app: :mixed_worker,
       version: "0.1.0",
-      elixir: "~> 1.19",
+      elixir: "~> 1.21.0-dev",
       packer: [entry: MixedWorker],
       deps: [
         {:packer,

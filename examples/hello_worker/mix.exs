@@ -5,7 +5,7 @@ defmodule HelloWorker.MixProject do
     [
       app: :hello_worker,
       version: "0.1.0",
-      elixir: "~> 1.19",
+      elixir: "~> 1.21.0-dev",
       packer: [entry: HelloWorker],
       deps: [
         {:midgard, path: "../../apps/midgard"},
