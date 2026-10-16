@@ -45,7 +45,7 @@ function runtimeHarness() {
 			starts++;
 		},
 		async destroy() { destroys++; this.running = false; },
-		async setInactivityTimeout(value: number) { expect(value).toBe(21_600_000); timeouts++; },
+		async setInactivityTimeout(value: number) { expect(value).toBe(600_000); timeouts++; },
 		getTcpPort(port: number) {
 			expect(port).toBe(4000);
 			return { fetch: async (request: Request) => {
@@ -110,7 +110,7 @@ test("public uploads and calls are rate limited before entering the DO", async (
 	expect(state.calls).toBe(0);
 });
 
-test("a DO restart renews the maximum sleep period for a surviving container", async () => {
+test("a DO restart renews the ten-minute idle period for a surviving container", async () => {
 	const { ctx, container, timeouts } = runtimeHarness();
 	container.running = true;
 	new NativeRuntime(ctx, env);

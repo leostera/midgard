@@ -6,9 +6,9 @@ const mediaType = "application/vnd.midgard.shipment.v1";
 const maxUpload = 24_000_000;
 const maxWorkers = 32;
 const chunkSize = 256_000;
-// Cloudflare's documented maximum; reset it for both newly started and
-// surviving Containers because a DO restart loses its inactivity setting.
-const maxInactivityMs = 6 * 60 * 60 * 1_000;
+// Renew the ten-minute idle period for both newly started and surviving
+// Containers because a DO restart loses its inactivity setting.
+const inactivityMs = 10 * 60 * 1_000;
 const publicGets = new Set(["/", "/workers/new", "/assets/app.css", "/assets/favicon.svg"]);
 const appName = /^[a-z][a-z0-9_]{0,39}$/;
 const workerName = /^[a-z][a-z0-9_]*_[0-9a-f]{16}$/;
@@ -68,7 +68,7 @@ export class NativeRuntime extends DurableObject<Env> {
 			if (sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'gateway'").toArray().length === 0) {
 				sql.exec("INSERT INTO settings (key, value) VALUES ('gateway', ?)", hex(crypto.getRandomValues(new Uint8Array(32))));
 			}
-			if (ctx.container?.running) await ctx.container.setInactivityTimeout(maxInactivityMs);
+			if (ctx.container?.running) await ctx.container.setInactivityTimeout(inactivityMs);
 		});
 	}
 
@@ -104,7 +104,7 @@ export class NativeRuntime extends DurableObject<Env> {
 			enableInternet: false,
 			env: { MIDGARD_CONTAINER_HTTP: "1", MIDGARD_INTERNAL_UPLOAD_KEY: this.gateway() },
 		});
-		await container.setInactivityTimeout(maxInactivityMs);
+		await container.setInactivityTimeout(inactivityMs);
 		const health = new Request(`${backend}/`, { headers: { host: "127.0.0.1:4000" } });
 		const ready = await this.portFetch(health, true);
 		if (ready.status !== 200) throw new Error("Elixir service did not start");
