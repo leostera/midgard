@@ -1,0 +1,29 @@
+# Build the exact tracked libbeam revision independently of the Midgard app.
+FROM --platform=linux/amd64 gcr.io/bazel-public/bazel@sha256:6158d62576c99301611a7d072aa37e2f721b6bc9cd7e28dc33c85f4719d93540 AS native
+WORKDIR /build/libbeam
+COPY libbeam-source/ ./
+RUN bazel build //libbeam:libbeam //libbeam:core
+COPY midgard-source/apps/libbeam_elixir/native/libbeam_host.cpp /build/libbeam_host.cpp
+RUN c++ -std=c++17 -O2 -I/build/libbeam/libbeam/include \
+    /build/libbeam_host.cpp bazel-bin/libbeam/liblibbeam.a \
+    bazel-bin/libbeam/libcore.a -lz -pthread -o /build/libbeam_host
+
+# Compile against the same Elixir and OTP versions as the pinned compiler.
+FROM --platform=linux/amd64 elixir@sha256:d170fadffd75b36146ff40b6e8d5cc881c59d136ae5a2c34a1b394ec33b6cffa
+COPY elixir-source/ /opt/elixir-source/
+WORKDIR /opt/elixir-source
+RUN make -j2 compile && make install && \
+    elixir -e 'unless System.version() == "1.21.0-dev", do: System.halt(1)'
+
+WORKDIR /opt/midgard
+COPY midgard-source/ ./
+COPY --from=native /build/libbeam_host /opt/midgard/apps/libbeam_elixir/priv/libbeam_host
+ARG MIDGARD_SOURCE_COMMIT
+ENV MIDGARD_SOURCE_COMMIT=${MIDGARD_SOURCE_COMMIT} MIX_ENV=prod
+RUN mix local.hex --force && mix deps.get && mix compile && \
+    test -x apps/libbeam_elixir/priv/libbeam_host
+
+# This image is only a native-host staging milestone. The existing application
+# binds loopback and cannot compile uploads here: no Docker daemon is included.
+EXPOSE 4000
+CMD ["mix", "run", "--no-halt"]

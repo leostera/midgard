@@ -70,6 +70,23 @@ defmodule MidgardPlatformRouterTest do
     assert BuildInfo.current_commit(root) == nil
   end
 
+  test "a packaged source revision overrides Git lookup and rejects invalid labels", %{root: root} do
+    original = System.get_env("MIDGARD_SOURCE_COMMIT")
+
+    on_exit(fn ->
+      if original,
+        do: System.put_env("MIDGARD_SOURCE_COMMIT", original),
+        else: System.delete_env("MIDGARD_SOURCE_COMMIT")
+    end)
+
+    sha = String.duplicate("a", 40)
+    System.put_env("MIDGARD_SOURCE_COMMIT", sha)
+    assert %{sha: ^sha, short: "aaaaaaa"} = BuildInfo.current_commit(root)
+
+    System.put_env("MIDGARD_SOURCE_COMMIT", "../other-checkout")
+    assert BuildInfo.current_commit() == nil
+  end
+
   test "invalid forms and cross-host requests cannot create or compile workers" do
     assert response(:post, "/workers", %{"csrf" => "wrong", "name" => "attack"}).status == 422
 
