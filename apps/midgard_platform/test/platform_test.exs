@@ -7,8 +7,14 @@ defmodule MidgardPlatformTest do
     {directory, beam_path} = echo_shipment()
     on_exit(fn -> File.rm_rf!(directory) end)
 
-    assert {:ok, %Shipment{module: "platform_echo", function: "handle", modules: [beam]}} =
-             Shipment.read(directory)
+    assert {:ok,
+            %Shipment{
+              module: "platform_echo",
+              function: "handle",
+              protocol: :raw,
+              language: :erlang,
+              modules: [beam]
+            }} = Shipment.read(directory)
 
     assert byte_size(beam) > 12
     File.write!(beam_path, <<0>> <> binary_part(beam, 1, byte_size(beam) - 1))
@@ -17,6 +23,21 @@ defmodule MidgardPlatformTest do
     File.write!(beam_path, beam)
     File.write!(Path.join(directory, "modules/undeclared.beam"), beam)
     assert {:error, "shipment contains missing or undeclared files"} = Shipment.read(directory)
+  end
+
+  test "shipment metadata must declare a supported protocol and coherent compiler" do
+    {directory, _beam_path} = echo_shipment()
+    on_exit(fn -> File.rm_rf!(directory) end)
+    path = Path.join(directory, "manifest.json")
+    original = path |> File.read!() |> :json.decode()
+
+    invalid_protocol = put_in(original, ["entrypoint", "protocol"], "custom.bytes.v1")
+    File.write!(path, :json.encode(invalid_protocol))
+    assert {:error, "unsupported worker byte protocol"} = Shipment.read(directory)
+
+    invalid_compiler = put_in(original, ["compiler", "unexpected"], "language")
+    File.write!(path, :json.encode(invalid_compiler))
+    assert {:error, "unsupported compiler metadata"} = Shipment.read(directory)
   end
 
   test "a symlinked BEAM file is not accepted as local shipment input" do

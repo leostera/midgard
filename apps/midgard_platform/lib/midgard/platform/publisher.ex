@@ -45,6 +45,8 @@ defmodule Midgard.Platform.Publisher do
           id: id,
           digest: digest,
           modules: length(shipment.modules),
+          protocol: shipment.protocol,
+          language: shipment.language,
           artifact: destination,
           deployed_at: DateTime.utc_now()
         }
@@ -102,6 +104,8 @@ defmodule Midgard.Platform.Publisher do
         id: id,
         digest: digest,
         modules: count,
+        protocol: :midgard,
+        language: :elixir,
         artifact: destination,
         deployed_at: DateTime.utc_now()
       }

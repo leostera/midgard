@@ -58,11 +58,11 @@ try {
 
   await page.goto(origin, { waitUntil: "networkidle" });
   assert.match(await page.locator(".worker-table").textContent(), /demo_worker[\s\S]*Deployed/);
-  assert.equal(await page.locator(".worker-table th").count(), 5);
-  assert.equal(await page.locator(".worker-table .try-link").getAttribute("href"), "/run/demo_worker/hello");
-  const [invoked] = await Promise.all([page.waitForEvent("popup"), page.locator(".worker-table .try-link").click()]);
-  assert.match(await invoked.locator("body").textContent(), /Hello from DemoWorker!/);
-  await invoked.close();
+  assert.equal(await page.locator(".worker-table th").count(), 6);
+  assert.equal(await page.locator(".worker-table tbody td:nth-child(2)").textContent(), "Elixir");
+  await page.getByRole("link", { name: "Language" }).click();
+  assert.match(page.url(), /sort=language/);
+  assert.equal(await page.locator(".worker-table .details-link").getAttribute("href"), "/workers/demo_worker");
   await page.screenshot({ path: join(review, "desktop.png"), fullPage: true });
   await page.getByRole("searchbox", { name: "Search workers" }).fill("not_here");
   await page.getByRole("button", { name: "Search" }).click();
@@ -70,10 +70,8 @@ try {
   await page.getByRole("link", { name: "Clear filters" }).click();
   await page.getByRole("link", { name: "Open details for demo_worker" }).click();
   await page.getByText("Managed by a local Midgard project.").waitFor();
-  assert.equal(await page.getByRole("link", { name: "Try GET /hello" }).getAttribute("href"), `${origin}/run/demo_worker/hello`);
-  const [visited] = await Promise.all([page.waitForEvent("popup"), page.getByRole("link", { name: "Try GET /hello" }).click()]);
-  assert.match(await visited.locator("body").textContent(), /Hello from DemoWorker!/);
-  await visited.close();
+  assert.match(await page.locator(".live-panel").textContent(), /other projects may use different paths/);
+  assert.match(await page.locator(".live-panel").textContent(), /Elixir/);
   await page.screenshot({ path: join(review, "platform-deployed-desktop.png"), fullPage: true });
 
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
@@ -83,7 +81,8 @@ try {
   await mobile.screenshot({ path: join(review, "platform-create-mobile.png"), fullPage: true });
   await mobile.goto(origin, { waitUntil: "networkidle" });
   assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
-  assert.equal(await mobile.locator(".worker-table .try-link").isVisible(), true);
+  assert.equal(await mobile.getByRole("link", { name: "Language" }).isVisible(), true);
+  assert.equal(await mobile.locator(".worker-table .details-link").isVisible(), true);
   await mobile.screenshot({ path: join(tmpdir(), "midgard-ui-mobile-inventory.png"), fullPage: true });
   await mobile.goto(`${origin}/workers/demo_worker`, { waitUntil: "networkidle" });
   assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);

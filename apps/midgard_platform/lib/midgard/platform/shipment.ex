@@ -7,8 +7,8 @@ defmodule Midgard.Platform.Shipment do
   atomic group admission. This local reader is not an adversarial upload API:
   callers must stage immutable files and enforce authorization beforehand.
   """
-  @enforce_keys [:application, :module, :function, :modules, :digest]
-  defstruct [:application, :module, :function, :modules, :digest]
+  @enforce_keys [:application, :module, :function, :protocol, :language, :modules, :digest]
+  defstruct [:application, :module, :function, :protocol, :language, :modules, :digest]
 
   @max_manifest 262_144
   @max_modules 512
@@ -24,6 +24,8 @@ defmodule Midgard.Platform.Shipment do
          {:ok, bytes} <- bounded_file(Path.join(path, "manifest.json"), @max_manifest),
          {:ok, manifest} <- decode(bytes),
          :ok <- validate_manifest(manifest),
+         {:ok, protocol} <- parse_protocol(manifest["entrypoint"]["protocol"]),
+         {:ok, language} <- parse_language(manifest),
          {:ok, modules} <- read_modules(path, manifest["modules"]) do
       entry = manifest["entrypoint"]
 
@@ -32,6 +34,8 @@ defmodule Midgard.Platform.Shipment do
          application: manifest["application"],
          module: entry["module"],
          function: entry["function"],
+         protocol: protocol,
+         language: language,
          modules: modules,
          digest: Base.encode16(:crypto.hash(:sha256, bytes), case: :lower)
        }}
@@ -79,6 +83,39 @@ defmodule Midgard.Platform.Shipment do
       {:error, "invalid or unsupported shipment manifest"}
     end
   end
+
+  defp parse_protocol("midgard.bytes.v1"), do: {:ok, :midgard}
+  defp parse_protocol("raw.bytes.v1"), do: {:ok, :raw}
+  defp parse_protocol(_), do: {:error, "unsupported worker byte protocol"}
+
+  defp parse_language(%{"format_version" => 2, "compiler" => compiler})
+       when is_map(compiler) do
+    case compiler do
+      %{"gleam_version" => version, "otp_release" => otp}
+      when is_binary(version) and is_binary(otp) ->
+        if Enum.sort(Map.keys(compiler)) == ~w(gleam_version otp_release),
+          do: {:ok, :gleam},
+          else: {:error, "unsupported compiler metadata"}
+
+      _ ->
+        {:error, "unsupported compiler metadata"}
+    end
+  end
+
+  defp parse_language(%{"format_version" => 1, "compiler" => compiler, "entrypoint" => entry})
+       when is_map(compiler) do
+    if Enum.sort(Map.keys(compiler)) == ~w(elixir_version otp_release) and
+         is_binary(compiler["elixir_version"]) and is_binary(compiler["otp_release"]) do
+      case entry["module"] do
+        "Elixir." <> _ -> {:ok, :elixir}
+        _ -> {:ok, :erlang}
+      end
+    else
+      {:error, "unsupported compiler metadata"}
+    end
+  end
+
+  defp parse_language(_), do: {:error, "unsupported compiler metadata"}
 
   defp valid_record?(%{} = record) do
     Enum.sort(Map.keys(record)) == ~w(name owner path sha256 size) and

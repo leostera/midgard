@@ -33,9 +33,9 @@ defmodule Mix.Tasks.Packer.Pack do
           "Usage: mix packer.pack [--project DIR] [--gleam] --entry MODULE [--function NAME] [--protocol ID] [--rebar3 PATH | --gleam-bin PATH] [--output DIR]"
         )
 
-    if (options[:gleam] and is_nil(options[:project])) or
-         (options[:gleam] and not is_nil(options[:rebar3])) or
-         (not is_nil(options[:gleam_bin]) and not options[:gleam]) do
+    if (options[:gleam] == true and is_nil(options[:project])) or
+         (options[:gleam] == true and not is_nil(options[:rebar3])) or
+         (not is_nil(options[:gleam_bin]) and options[:gleam] != true) do
       Mix.raise("--gleam requires --project and cannot be combined with --rebar3")
     end
 

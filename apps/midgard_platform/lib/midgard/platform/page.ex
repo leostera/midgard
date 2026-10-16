@@ -94,11 +94,10 @@ defmodule Midgard.Platform.Page do
       if(record.live,
         do: [
           "<section class='live-panel' aria-label='Live deployment'><div class='call-details'><div class='live-label'><span class='status-dot' aria-hidden='true'></span> Deployed worker</div>",
-          "<h2>Call this worker</h2><p>Use a path implemented by your project. Generated workers respond at /hello.</p><code class='endpoint'>",
-          safe(route),
-          "</code><div class='invoke-action'><a class='button primary' href='",
-          safe(route <> "hello"),
-          "' target='_blank' rel='noopener'>Try GET /hello</a></div></div><dl class='deployment-meta'><div><dt>Modules</dt><dd>",
+          call_instructions(record.live.protocol, route),
+          "</div><dl class='deployment-meta'><div><dt>Language</dt><dd>",
+          language_label(record.live.language),
+          "</dd></div><div><dt>Modules</dt><dd>",
           Integer.to_string(record.live.modules),
           " BEAMs</dd></div><div><dt>Shipment</dt><dd><code>",
           safe(String.slice(record.live.digest, 0, 12)),
@@ -166,10 +165,35 @@ defmodule Midgard.Platform.Page do
     ])
   end
 
+  defp call_instructions(:raw, route) do
+    [
+      "<h2>Call this worker</h2><p>POST raw bytes to the route root. The response contains raw bytes, not an HTTP worker protocol message.</p><code class='endpoint'>",
+      safe(route),
+      "</code><div class='curl-example'><code>curl -X POST -H 'Content-Type: application/octet-stream' --data-binary 'hello' '",
+      safe(route),
+      "'</code></div>"
+    ]
+  end
+
+  defp call_instructions(:midgard, route) do
+    [
+      "<h2>Call this worker</h2><p>Append a path implemented by your project. For generated workers, use /hello; other projects may use different paths.</p><code class='endpoint'>",
+      safe(route),
+      "</code>"
+    ]
+  end
+
+  defp language_label(:elixir), do: "Elixir"
+  defp language_label(:erlang), do: "Erlang"
+  defp language_label(:gleam), do: "Gleam"
+  defp language_label(_), do: "Unknown"
+
   defp filters(params) do
     q = if is_binary(params["q"]), do: String.slice(params["q"], 0, 80), else: ""
     status = if params["status"] in ["deployed", "drafts"], do: params["status"], else: "all"
-    sort = if params["sort"] in ["invocations", "recent"], do: params["sort"], else: "name"
+
+    sort =
+      if params["sort"] in ["language", "invocations", "recent"], do: params["sort"], else: "name"
 
     page_input = if is_binary(params["page"]), do: params["page"], else: "1"
 
@@ -196,6 +220,9 @@ defmodule Midgard.Platform.Page do
     end)
   end
 
+  defp sort_workers(workers, "language"),
+    do: Enum.sort_by(workers, &{language_label(get_in(&1, [:live, :language])), &1.slug})
+
   defp sort_workers(workers, "invocations"),
     do: Enum.sort_by(workers, &{-(Map.get(&1, :invocations) || -1), &1.slug})
 
@@ -213,6 +240,9 @@ defmodule Midgard.Platform.Page do
       "<div class='table-scroll'><table class='worker-table'><thead><tr>",
       "<th scope='col'>",
       sort_link("Worker", "name", filters),
+      "</th>",
+      "<th scope='col'>",
+      sort_link("Language", "language", filters),
       "</th>",
       "<th scope='col'>Status</th>",
       "<th scope='col' class='numeric'>",
@@ -243,7 +273,10 @@ defmodule Midgard.Platform.Page do
       safe(worker.slug),
       "'>",
       safe(worker.slug),
-      "</a><small class='worker-type'>Elixir</small></td>",
+      "</a></td>",
+      "<td>",
+      language_label(get_in(worker, [:live, :language])),
+      "</td>",
       "<td><span class='badge #{if worker.live, do: "live", else: "draft"}'>",
       if(worker.live, do: "Deployed", else: "Draft"),
       "</span></td>",
@@ -257,16 +290,6 @@ defmodule Midgard.Platform.Page do
       ),
       "</td>",
       "<td class='open-cell'>",
-      if(worker.live,
-        do: [
-          "<a class='try-link' href='/run/",
-          safe(worker.slug),
-          "/hello' target='_blank' rel='noopener' aria-label='Try GET /hello on ",
-          safe(worker.slug),
-          "'>Try /hello</a>"
-        ],
-        else: ""
-      ),
       "<a class='details-link' href='/workers/",
       safe(worker.slug),
       "' aria-label='Open details for ",

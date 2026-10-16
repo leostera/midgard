@@ -123,12 +123,17 @@ defmodule MidgardPlatformRouterTest do
     assert {:error, :not_found} = Workspace.read("elsewhere")
   end
 
-  test "inventory omits route prefixes and links deployed workers to callable examples" do
+  test "inventory sorts verified languages and does not claim an unimplemented example path" do
     slug = "hello_joe_0123456789abcdef"
 
     record = %{
       slug: slug,
-      live: %{modules: 342, digest: String.duplicate("a", 64)},
+      live: %{
+        modules: 342,
+        digest: String.duplicate("a", 64),
+        protocol: :midgard,
+        language: :elixir
+      },
       origin: :cli,
       invocations: 0,
       last_invoked_at: nil
@@ -137,13 +142,97 @@ defmodule MidgardPlatformRouterTest do
     html = Midgard.Platform.Page.index([record])
     refute html =~ "<th scope='col'>Route prefix</th>"
     refute html =~ "<code class='route'>/run/"
-    assert html =~ "href='/run/#{slug}/hello'"
-    assert html =~ "Try /hello"
+    assert html =~ "sort=language"
+    assert html =~ "<td>Elixir</td>"
+    refute html =~ "Try /hello"
     assert html =~ "href='/workers/#{slug}'"
 
+    erlang = %{
+      record
+      | slug: "z_erlang",
+        live: %{record.live | language: :erlang, protocol: :raw}
+    }
+
+    gleam = %{record | slug: "a_gleam", live: %{record.live | language: :gleam, protocol: :raw}}
+    draft = %{record | slug: "b_draft", live: nil}
+    sorted = Midgard.Platform.Page.index([draft, gleam, erlang, record], %{"sort" => "language"})
+    {elixir_at, _} = :binary.match(sorted, "href='/workers/#{slug}'")
+    {erlang_at, _} = :binary.match(sorted, "href='/workers/z_erlang'")
+    {gleam_at, _} = :binary.match(sorted, "href='/workers/a_gleam'")
+    {draft_at, _} = :binary.match(sorted, "href='/workers/b_draft'")
+    assert elixir_at < erlang_at and erlang_at < gleam_at and gleam_at < draft_at
+
     details = Midgard.Platform.Page.uploaded_worker(slug, record, 4000)
-    assert details =~ "href='http://127.0.0.1:4000/run/#{slug}/hello'"
-    assert details =~ "Try GET /hello"
+    assert details =~ "http://127.0.0.1:4000/run/#{slug}/"
+    refute details =~ "Try GET /hello"
+
+    raw_details = Midgard.Platform.Page.uploaded_worker("z_erlang", erlang, 4000)
+    assert raw_details =~ "POST raw bytes"
+    assert raw_details =~ "--data-binary 'hello'"
+    assert raw_details =~ "http://127.0.0.1:4000/run/z_erlang/"
+  end
+
+  test "raw-byte workers accept bounded binary POSTs at their route root", %{root: root} do
+    source = Path.join(root, "raw_echo.erl")
+    File.write!(source, "-module(raw_echo).\n-export([handle/1]).\nhandle(Bytes) -> Bytes.\n")
+    assert {:ok, :raw_echo, beam} = :compile.file(String.to_charlist(source), [:binary])
+    shipment = Path.join(root, "raw_echo.midgard")
+
+    assert {:ok, ^shipment} =
+             Packer.Artifact.build(
+               shipment,
+               "raw_echo",
+               "raw_echo",
+               [
+                 %{name: "raw_echo", owner: "raw_echo", bytes: beam}
+               ],
+               [],
+               function: "handle",
+               protocol: "raw.bytes.v1"
+             )
+
+    assert {:ok, %{protocol: :raw, language: :erlang}} =
+             Midgard.Platform.Shipment.read(shipment)
+
+    {:ok, platform} = Midgard.Platform.start_link()
+    Process.unlink(platform)
+    on_exit(fn -> if Process.alive?(platform), do: Supervisor.stop(platform) end)
+    assert :ok = Workspace.begin_upload("raw_echo")
+    assert {:ok, digest} = Midgard.Platform.deploy("raw_echo", shipment)
+
+    assert {:ok, nil} =
+             Workspace.finish_deploy(
+               "raw_echo",
+               {:ok,
+                %{id: "raw_echo", digest: digest, modules: 1, protocol: :raw, language: :erlang}}
+             )
+
+    route = "http://127.0.0.1/run/raw_echo/"
+    input = <<0, 255, "hello">>
+
+    reply = Plug.Test.conn(:post, route, input) |> Router.call(Router.init([]))
+    assert reply.status == 200
+    assert reply.resp_body == input
+
+    assert Plug.Conn.get_resp_header(reply, "content-type") == ["application/octet-stream"]
+
+    method = Plug.Test.conn(:get, route) |> Router.call(Router.init([]))
+    assert method.status == 405
+    assert Plug.Conn.get_resp_header(method, "allow") == ["POST"]
+
+    assert Plug.Test.conn(:post, route <> "hello", input)
+           |> Router.call(Router.init([]))
+           |> Map.get(:status) == 404
+
+    assert Plug.Test.conn(:post, route <> "?q=1", input)
+           |> Router.call(Router.init([]))
+           |> Map.get(:status) == 404
+
+    assert Plug.Test.conn(:post, route, :binary.copy("x", 32_769))
+           |> Router.call(Router.init([]))
+           |> Map.get(:status) == 413
+
+    assert [%{invocations: 1}] = Workspace.list()
   end
 
   test "search, status filters, sorting and pagination work without JavaScript" do

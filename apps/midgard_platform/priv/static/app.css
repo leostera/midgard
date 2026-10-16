@@ -62,17 +62,17 @@ input[type='search']::-webkit-search-cancel-button { cursor: pointer; }
 .table-scroll { max-width: 100%; overflow-x: auto; scrollbar-color: #b5a7d0 #f6f5fa; }
 .worker-table { width: 100%; border-collapse: collapse; text-align: left; table-layout: fixed; }
 .worker-table th { background: #f8f8fa; color: #515266; height: 36px; border-block: 1px solid var(--line); padding: 0 13px; text-transform: uppercase; letter-spacing: .035em; font-size: 10px; font-weight: 730; white-space: nowrap; }
-.worker-table th:nth-child(1) { width: 27%; }
-.worker-table th:nth-child(2) { width: 13%; }
-.worker-table th:nth-child(3) { width: 16%; }
-.worker-table th:nth-child(4) { width: 18%; }
-.worker-table th:nth-child(5) { width: 26%; }
+.worker-table th:nth-child(1) { width: 30%; }
+.worker-table th:nth-child(2) { width: 12%; }
+.worker-table th:nth-child(3) { width: 14%; }
+.worker-table th:nth-child(4) { width: 16%; }
+.worker-table th:nth-child(5) { width: 18%; }
+.worker-table th:nth-child(6) { width: 10%; }
 .worker-table th a:hover { color: var(--purple-dark); }
 .worker-table td { height: 52px; padding: 8px 13px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .worker-table tbody tr:hover { background: #faf8ff; }
 .worker-name { display: block; width: fit-content; max-width: 100%; color: var(--ink); font-weight: 700; overflow-wrap: anywhere; }
 .worker-name:hover, .open-cell a:hover { color: var(--purple-dark); }
-.worker-type { display: block; color: var(--muted); font-size: 10px; }
 .badge { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 610; white-space: nowrap; }
 .badge::before { content: ''; width: 6px; height: 6px; flex: none; border-radius: 50%; }
 .badge.live { color: var(--green); }
@@ -85,7 +85,6 @@ input[type='search']::-webkit-search-cancel-button { cursor: pointer; }
 .route { font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; color: #5a38b5; overflow-wrap: anywhere; }
 .open-cell { text-align: right; white-space: nowrap; }
 .open-cell a { display: inline-block; color: #5b3aad; font-size: 11px; font-weight: 690; white-space: nowrap; }
-.open-cell .try-link { margin-right: 15px; text-decoration: underline; }
 .open-cell .details-link { color: var(--muted); }
 .table-footer { display: flex; justify-content: space-between; gap: 12px; padding: 15px 13px; color: var(--muted); font-size: 11px; }
 .pagination { display: flex; gap: 18px; }
@@ -147,11 +146,12 @@ input[type='search']::-webkit-search-cancel-button { cursor: pointer; }
 @media (max-width: 1060px) {
   .registry-toolbar { align-items: stretch; flex-wrap: wrap; padding: 13px 0; }
   .search-form { width: 100%; }
-  .worker-table th:nth-child(4), .worker-table td:nth-child(4) { display: none; }
-  .worker-table th:nth-child(1) { width: 36%; }
-  .worker-table th:nth-child(2) { width: 18%; }
+  .worker-table th:nth-child(5), .worker-table td:nth-child(5) { display: none; }
+  .worker-table th:nth-child(1) { width: 32%; }
+  .worker-table th:nth-child(2) { width: 17%; }
   .worker-table th:nth-child(3) { width: 18%; }
-  .worker-table th:nth-child(5) { width: 28%; }
+  .worker-table th:nth-child(4) { width: 19%; }
+  .worker-table th:nth-child(6) { width: 14%; }
 }
 @media (max-width: 680px) {
   .shell { grid-template-columns: 64px minmax(0, 1fr); }
@@ -173,12 +173,11 @@ input[type='search']::-webkit-search-cancel-button { cursor: pointer; }
   .filters { overflow-x: auto; max-width: 100%; scrollbar-width: thin; }
   .result-count { display: none; }
   .worker-table th, .worker-table td { padding-inline: 7px; }
-  .worker-table th:nth-child(3), .worker-table td:nth-child(3) { display: none; }
-  .worker-table th:nth-child(1) { width: 54%; }
-  .worker-table th:nth-child(2) { width: 18%; }
-  .worker-table th:nth-child(5) { width: 28%; }
-  .open-cell .details-link { display: none; }
-  .open-cell .try-link { margin-right: 0; }
+  .worker-table th:nth-child(4), .worker-table td:nth-child(4) { display: none; }
+  .worker-table th:nth-child(1) { width: 38%; }
+  .worker-table th:nth-child(2) { width: 19%; }
+  .worker-table th:nth-child(3) { width: 24%; }
+  .worker-table th:nth-child(6) { width: 19%; }
   .worker-name { font-size: 11px; }
   .worker-table th { font-size: 9px; letter-spacing: 0; }
   .worker-table td { height: 48px; }

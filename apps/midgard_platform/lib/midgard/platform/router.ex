@@ -92,8 +92,8 @@ defmodule Midgard.Platform.Router do
 
   match "/run/:slug/*tail" do
     case Workspace.read(slug) do
-      {:ok, %{record: %{live: %{id: deployment}}}} ->
-        invoke(conn, slug, deployment, tail)
+      {:ok, %{record: %{live: %{id: deployment, protocol: protocol}}}} ->
+        invoke(conn, slug, deployment, protocol, tail)
 
       _ ->
         send_resp(conn, 404, "worker not deployed\n")
@@ -180,7 +180,37 @@ defmodule Midgard.Platform.Router do
 
   defp upload_token?(_, _), do: false
 
-  defp invoke(conn, slug, deployment, tail) do
+  defp invoke(conn, slug, deployment, :raw, tail) do
+    cond do
+      tail != [] or conn.query_string != "" ->
+        send_resp(conn, 404, "raw worker accepts only the route root\n")
+
+      conn.method != "POST" ->
+        conn |> put_resp_header("allow", "POST") |> send_resp(405, "POST required\n")
+
+      true ->
+        case read_request_body(conn, 32_768) do
+          {:ok, body, conn} ->
+            case call_worker(slug, deployment, body) do
+              {:ok, reply} when is_binary(reply) and byte_size(reply) <= 65_536 ->
+                conn
+                |> put_resp_header("content-type", "application/octet-stream")
+                |> send_resp(200, reply)
+
+              {:error, :not_deployed} ->
+                send_resp(conn, 503, "worker is restarting\n")
+
+              _ ->
+                send_resp(conn, 502, "worker invocation failed\n")
+            end
+
+          {:error, conn} ->
+            send_resp(conn, 413, "request body exceeds 32 KiB\n")
+        end
+    end
+  end
+
+  defp invoke(conn, slug, deployment, :midgard, tail) do
     case read_request_body(conn, 32_768) do
       {:ok, body, conn} ->
         request = %Midgard.Request{
