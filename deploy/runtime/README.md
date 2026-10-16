@@ -1,7 +1,7 @@
 # Native runtime image: staging prerequisite
 
 `build-image.sh` creates a `linux/amd64` image from **git-archived tracked
-sources only**, pinning libbeam to `1db6feff2073b948169e1def265c884097a2e2a1`
+sources only**, pinning libbeam to `b104952047cbdee7f2d4469de7375428df23a43a`
 and the Elixir compiler/runtime to `13299af2b91a6aff7e430f25849f586c02b3231f`.
 The image tag is the Midgard source commit; no credential or working-tree file
 enters the build context. The dashboard's GitHub revision link uses that exact
