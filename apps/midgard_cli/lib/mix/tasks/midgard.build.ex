@@ -18,12 +18,13 @@ defmodule Mix.Tasks.Midgard.Build do
 
     if positional != [] or invalid != [], do: Mix.raise("Usage: mix midgard.build [--output DIR]")
 
-    unless Code.ensure_loaded?(Packer) and Code.ensure_loaded?(Packer.Profile) do
-      Mix.raise("Add the Packer dependency and run mix deps.get before building")
-    end
-
     with {:ok, config} <- Midgard.CLI.Config.load() do
       Mix.Task.run("compile")
+
+      unless Code.ensure_loaded?(Packer) and Code.ensure_loaded?(Packer.Profile) do
+        Mix.raise("Add the Packer dependency and run mix deps.get before building")
+      end
+
       output = options[:output] || "#{Mix.Project.config()[:app]}.midgard"
 
       with {:ok, path} <-

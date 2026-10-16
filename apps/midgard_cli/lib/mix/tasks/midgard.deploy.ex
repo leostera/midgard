@@ -18,10 +18,6 @@ defmodule Mix.Tasks.Midgard.Deploy do
       Mix.raise("Usage: mix midgard.deploy [--endpoint URL] [--artifact DIR] [--output DIR]")
     end
 
-    unless Code.ensure_loaded?(ShipmentUpload) do
-      Mix.raise("Add the Packer dependency and run mix deps.get before deploying")
-    end
-
     if options[:artifact] && options[:output] do
       Mix.raise("--artifact and --output cannot be used together")
     end
@@ -37,9 +33,16 @@ defmodule Mix.Tasks.Midgard.Deploy do
 
     path = options[:artifact] || options[:output] || "#{Mix.Project.config()[:app]}.midgard"
 
-    unless options[:artifact] do
+    if options[:artifact] do
+      # Load project dependencies even when re-uploading a prebuilt shipment.
+      Mix.Task.run("compile")
+    else
       build_args = if options[:output], do: ["--output", options[:output]], else: []
       Mix.Task.run("midgard.build", build_args)
+    end
+
+    unless Code.ensure_loaded?(ShipmentUpload) do
+      Mix.raise("Add the Packer dependency and run mix deps.get before deploying")
     end
 
     with {:ok, upload} <- ShipmentUpload.read_directory(path),
