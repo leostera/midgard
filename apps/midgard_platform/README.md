@@ -69,4 +69,15 @@ LIBBEAM_PORT_NATIVE=1 MIDGARD_COMPILER_IMAGE=1 mix test
 
 These are run from the repository root. The native/compiler tests require the
 native host and pinned compiler image built above. The pure local tests need
-neither Docker nor libbeam.
+neither Docker nor libbeam. For optional desktop/mobile browser coverage with
+Chrome installed:
+
+```sh
+cd apps/midgard_platform
+npm ci
+CHROME_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" npm run test:browser
+```
+
+The browser check captures desktop/mobile screenshots under the gitignored
+`.impeccable/review/` directory and verifies that a failed edit leaves the
+previous deployment callable.
