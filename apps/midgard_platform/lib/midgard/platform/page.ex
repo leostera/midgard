@@ -94,7 +94,9 @@ defmodule Midgard.Platform.Page do
       if(record.live,
         do: [
           "<section class='live-panel' aria-label='Live deployment'><div class='call-details'><div class='live-label'><span class='status-dot' aria-hidden='true'></span> Deployed worker</div>",
-          "<h2>Call this worker</h2><p>Use the routes implemented by your project.</p><code class='endpoint'>",
+          "<h2>Call this worker</h2><p>This is a route prefix; append a path implemented by your project. A generated worker responds at <a href='",
+          safe(route <> "hello"),
+          "'>GET /hello</a>.</p><code class='endpoint'>",
           safe(route),
           "</code></div><dl class='deployment-meta'><div><dt>Modules</dt><dd>",
           Integer.to_string(record.live.modules),

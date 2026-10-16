@@ -126,7 +126,8 @@ defmodule Midgard.CLI.Generator do
         use Midgard.Worker
 
         @impl true
-        def handle_request(%Midgard.Request{method: "GET", path: "/hello"}),
+        def handle_request(%Midgard.Request{method: "GET", path: path})
+            when path in ["/", "/hello"],
           do: {200, __MODULE__.Greeting.hello()}
 
         def handle_request(_request), do: {404, "Not found\n"}
@@ -150,6 +151,8 @@ defmodule Midgard.CLI.Generator do
         test "handles the hello route through the provisional binary entrypoint" do
           request = Midgard.Request.new("GET", "/hello")
           assert __MODULE__.handle_request(request) == {200, "Hello from __MODULE__!\n"}
+          assert __MODULE__.handle_request(Midgard.Request.new("GET", "/")) ==
+                   {200, "Hello from __MODULE__!\n"}
           assert {:ok, bytes} = Midgard.Protocol.request(request)
           assert {:ok, {200, "Hello from __MODULE__!\n"}} =
                    bytes |> __MODULE__.__midgard_call__() |> Midgard.Protocol.decode_response()

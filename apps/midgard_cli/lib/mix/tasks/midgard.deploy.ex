@@ -54,7 +54,9 @@ defmodule Mix.Tasks.Midgard.Deploy do
         "Deployed #{result["slug"]} · #{result["modules"]} BEAMs · #{url |> URI.parse() |> Map.get(:host)}"
       )
 
-      Mix.shell().info("Route: #{URI.to_string(endpoint)}#{result["path"]}")
+      route_prefix = "#{URI.to_string(endpoint)}#{result["path"]}"
+      Mix.shell().info("Route prefix: #{route_prefix}")
+      Mix.shell().info("Generated worker example: GET #{route_prefix}hello")
     else
       {:error, reason} -> Mix.raise("Midgard deployment failed: #{inspect(reason)}")
     end
