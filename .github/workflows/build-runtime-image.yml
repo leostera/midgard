@@ -49,6 +49,45 @@ jobs:
           ELIXIR_SOURCE: ${{ github.workspace }}/elixir
         run: deploy/runtime/build-image.sh
 
+      - name: Smoke test OTP 29 shipment admission and invocation
+        run: |
+          set -euo pipefail
+          image="midgard-runtime:${GITHUB_SHA::12}"
+          container=midgard-runtime-smoke
+          docker run --detach --name "$container" \
+            --env MIDGARD_WORKSPACE=/tmp/midgard-platform-smoke \
+            "$image"
+          trap 'docker rm --force "$container" >/dev/null' EXIT
+
+          ready=false
+          for attempt in $(seq 1 30); do
+            if docker exec "$container" elixir -e '
+              :inets.start()
+              case :httpc.request(:get, {~c"http://127.0.0.1:4000/", []}, [], body_format: :binary) do
+                {:ok, {{_, 200, _}, _, _}} -> System.halt(0)
+                _ -> System.halt(1)
+              end
+            ' >/dev/null 2>&1; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = true
+
+          docker exec --workdir /opt/midgard/examples/hello_worker \
+            --env MIX_ENV=dev "$container" sh -ec '
+              mix deps.get
+              mix midgard.deploy --endpoint http://127.0.0.1:4000
+            '
+          docker exec "$container" elixir -e '
+            :inets.start()
+            case :httpc.request(:get, {~c"http://127.0.0.1:4000/run/hello_worker/hello?name=OTP29", []}, [], body_format: :binary) do
+              {:ok, {{_, 200, _}, _, "Hello, OTP29!\n"}} -> :ok
+              other -> IO.inspect(other); System.halt(1)
+            end
+          '
+
       - name: Export runtime image
         run: docker save "midgard-runtime:${GITHUB_SHA::12}" | gzip -1 > midgard-runtime.tar.gz
 
