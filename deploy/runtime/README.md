@@ -4,9 +4,11 @@
 sources only**, pinning libbeam to `5a8c663b819d5d24bde4fbbb7f7099385f090890`
 and the Elixir compiler/runtime to `13299af2b91a6aff7e430f25849f586c02b3231f`.
 The image tag is the Midgard source commit; no credential or working-tree file
-enters the build context. The dashboard's GitHub revision link uses that exact
-build-time commit. A manually dispatched GitHub Actions workflow builds and
-smoke-checks the image on an amd64 runner.
+enters the build context. The manually dispatched `Build runtime image` GitHub
+Actions workflow runs the OTP 29 BIF test, builds on an amd64 runner, and
+uploads the image as a one-day artifact. Download it with `gh run download`,
+load it with `docker load`, then publish it with `cf containers push` before
+updating the edge image's pinned base digest.
 
 ```sh
 LIBBEAM_SOURCE=/path/to/leostera/libbeam \

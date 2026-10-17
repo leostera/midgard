@@ -1,0 +1,49 @@
+name: Build runtime image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out Midgard
+        uses: actions/checkout@v4
+
+      - name: Check out pinned libbeam source
+        uses: actions/checkout@v4
+        with:
+          repository: leostera/libbeam
+          ref: 5a8c663b819d5d24bde4fbbb7f7099385f090890
+          path: libbeam
+
+      - name: Check out pinned Elixir source
+        uses: actions/checkout@v4
+        with:
+          repository: elixir-lang/elixir
+          ref: 13299af2b91a6aff7e430f25849f586c02b3231f
+          path: elixir
+
+      - name: Test OTP 29 BIF support in libbeam
+        working-directory: libbeam
+        run: bazel test //libbeam:bif_is_integer_3_test
+
+      - name: Build pinned runtime image
+        env:
+          LIBBEAM_SOURCE: ${{ github.workspace }}/libbeam
+          ELIXIR_SOURCE: ${{ github.workspace }}/elixir
+        run: deploy/runtime/build-image.sh
+
+      - name: Export runtime image
+        run: docker save "midgard-runtime:${GITHUB_SHA::12}" | gzip -1 > midgard-runtime.tar.gz
+
+      - name: Upload runtime image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: midgard-runtime-${{ github.sha }}
+          path: midgard-runtime.tar.gz
+          retention-days: 1
