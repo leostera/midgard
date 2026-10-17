@@ -11,7 +11,7 @@ defmodule Packer.Profile do
   # supported guest; native libbeam, not static imports, enforces capabilities.
   @runtime_owners ~w(erts kernel stdlib elixir compiler syntax_tools iex crypto logger)
   # Snapshot of the actual bounded profile, not generic opcode presence as authority.
-  @profile_revision "libbeam:b023b770"
+  @profile_revision "libbeam:5a8c663b"
   @unavailable_ops ~w(get_map_elements put_map_assoc put_map_exact has_map_fields is_map new_map make_fun2 is_port)a
   @conditional_ops ~w(make_fun3 call_fun call_fun2 is_pid is_reference bs_start_match3 bs_match bs_create_bin send loop_rec loop_rec_end wait wait_timeout)a
   @native_imports MapSet.new([
@@ -23,6 +23,9 @@ defmodule Packer.Profile do
                     {:erlang, :make_ref, 0},
                     {:erlang, :is_function, 1},
                     {:erlang, :is_function, 2},
+                    {:erlang, :is_integer, 3},
+                    {:erlang, :is_record, 2},
+                    {:erlang, :is_record, 3},
                     {:erlang, :spawn, 3},
                     {:erlang, :register, 2},
                     {:erlang, :error, 1},

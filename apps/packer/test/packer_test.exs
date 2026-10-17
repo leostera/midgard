@@ -221,7 +221,8 @@ defmodule PackerTest do
       compile_fixture("""
       def __midgard_call__(bytes) do
         fun = fn -> bytes end
-        {fun, self(), make_ref(), is_function(fun), Integer.to_string(42)}
+        {fun, self(), make_ref(), is_function(fun), Integer.to_string(42),
+         :erlang.is_integer(bytes, 0, 255)}
       end
       """)
 
@@ -237,7 +238,8 @@ defmodule PackerTest do
              )
 
     assert {:ok, report} = Packer.Profile.report(path)
-    assert report["profile_revision"] == "libbeam:b023b770"
+    assert report["profile_revision"] == "libbeam:5a8c663b"
+    refute Enum.any?(report["unresolved_imports"], &String.contains?(&1, "erlang:is_integer/3"))
     assert report["known_unsupported_current_core"] == []
     refute Enum.any?(report["unresolved_imports"], &String.contains?(&1, "erlang:self/0"))
     refute Enum.any?(report["unresolved_imports"], &String.contains?(&1, "erlang:make_ref/0"))
