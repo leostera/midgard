@@ -40,6 +40,7 @@ jobs:
           bazel test
           --copt=-Wno-error=misleading-indentation
           --copt=-Wno-error=sign-compare
+          --copt=-D_POSIX_C_SOURCE=200809L
           //libbeam:bif_is_integer_3_test
 
       - name: Build pinned runtime image

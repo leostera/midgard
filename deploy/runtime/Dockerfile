@@ -7,7 +7,8 @@ WORKDIR /build/libbeam
 COPY libbeam-source/ ./
 # GCC diagnoses style and signedness in upstream C more strictly than the
 # macOS build; retain warnings, without changing libbeam admission behavior.
-RUN bazel build --copt=-Wno-error=misleading-indentation \
+RUN bazel build --copt=-D_POSIX_C_SOURCE=200809L \
+    --copt=-Wno-error=misleading-indentation \
     --copt=-Wno-error=sign-compare //libbeam:libbeam //libbeam:core
 COPY midgard-source/apps/libbeam_elixir/native/libbeam_host.cpp /build/libbeam_host.cpp
 RUN c++ -std=c++17 -O2 -I/build/libbeam/libbeam/include \
