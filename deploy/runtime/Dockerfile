@@ -2,7 +2,7 @@
 # need the same OTP/Elixir toolchain that will run the application.
 FROM gcr.io/bazel-public/bazel@sha256:6158d62576c99301611a7d072aa37e2f721b6bc9cd7e28dc33c85f4719d93540 AS bazel
 FROM hexpm/elixir@sha256:8c1b44690f7b337328869b7bcfa5b5ecc816d63f8cca57467177b6d84cca8565 AS native
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential && \
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential zlib1g-dev && \
     rm -rf /var/lib/apt/lists/*
 COPY --from=bazel /usr/local/bin/bazel /usr/local/bin/bazel
 WORKDIR /build/libbeam
