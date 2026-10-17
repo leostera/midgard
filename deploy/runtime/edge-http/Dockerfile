@@ -1,6 +1,6 @@
 # Only pure Elixir BEAMs are compiled on the matching OTP/Elixir toolchain.
 # No emulated OTP invocation or Docker daemon runs inside the deployed image.
-FROM registry.cloudflare.com/0f436d2aabf1f872be90b8dd9d5715e6/midgard-runtime@sha256:6f3e271f15ac28dcd3c39bd64703654934ee1d2501f2de1b9515c684201b5504
+FROM registry.cloudflare.com/0f436d2aabf1f872be90b8dd9d5715e6/midgard-runtime@sha256:ee3504528f7f80f0c24f8161c7dd8a46f8d2a3a9ffa787b145a9adc823127676
 COPY ebin/ /opt/midgard/_build/prod/lib/midgard_platform/ebin/
 COPY packer-ebin/ /opt/midgard/_build/prod/lib/packer/ebin/
 COPY mix.exs /opt/midgard/apps/midgard_platform/mix.exs
