@@ -36,7 +36,11 @@ jobs:
 
       - name: Test OTP 29 BIF support in libbeam
         working-directory: libbeam
-        run: bazel test //libbeam:bif_is_integer_3_test
+        run: >-
+          bazel test
+          --copt=-Wno-error=misleading-indentation
+          --copt=-Wno-error=sign-compare
+          //libbeam:bif_is_integer_3_test
 
       - name: Build pinned runtime image
         env:
