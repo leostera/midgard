@@ -28,6 +28,12 @@ jobs:
           ref: 13299af2b91a6aff7e430f25849f586c02b3231f
           path: elixir
 
+      - name: Set up OTP 29 and Elixir for Bazel's host tools
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29.1.2"
+          elixir-version: "1.20.4"
+
       - name: Test OTP 29 BIF support in libbeam
         working-directory: libbeam
         run: bazel test //libbeam:bif_is_integer_3_test
