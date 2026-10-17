@@ -3,13 +3,14 @@ defmodule Midgard.CLI.Generator do
 
   @default_root Path.expand("../../../../..", __DIR__)
   @repository "https://github.com/leostera/midgard.git"
-  @archive_revision (case System.cmd("git", ["rev-parse", "HEAD"],
-                            cd: __DIR__,
-                            stderr_to_stdout: true
-                          ) do
-                       {hash, 0} -> String.trim(hash)
-                       _ -> nil
-                     end)
+  @archive_revision System.get_env("MIDGARD_SOURCE_COMMIT") ||
+                      (case System.cmd("git", ["rev-parse", "HEAD"],
+                              cd: __DIR__,
+                              stderr_to_stdout: true
+                            ) do
+                         {hash, 0} -> String.trim(hash)
+                         _ -> nil
+                       end)
 
   def default_root, do: @default_root
   def archive_revision, do: @archive_revision
