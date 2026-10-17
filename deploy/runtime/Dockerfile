@@ -1,7 +1,7 @@
 # Bazel's published image supplies the pinned binary; libbeam's generators also
 # need the same OTP/Elixir toolchain that will run the application.
 FROM gcr.io/bazel-public/bazel@sha256:6158d62576c99301611a7d072aa37e2f721b6bc9cd7e28dc33c85f4719d93540 AS bazel
-FROM elixir@sha256:d170fadffd75b36146ff40b6e8d5cc881c59d136ae5a2c34a1b394ec33b6cffa AS native
+FROM hexpm/elixir@sha256:8c1b44690f7b337328869b7bcfa5b5ecc816d63f8cca57467177b6d84cca8565 AS native
 COPY --from=bazel /usr/local/bin/bazel /usr/local/bin/bazel
 WORKDIR /build/libbeam
 COPY libbeam-source/ ./
@@ -16,7 +16,7 @@ RUN c++ -std=c++17 -O2 -I/build/libbeam/libbeam/include \
     bazel-bin/libbeam/libcore.a -lz -pthread -o /build/libbeam_host
 
 # Compile against the same Elixir and OTP versions as the pinned compiler.
-FROM elixir@sha256:d170fadffd75b36146ff40b6e8d5cc881c59d136ae5a2c34a1b394ec33b6cffa
+FROM hexpm/elixir@sha256:8c1b44690f7b337328869b7bcfa5b5ecc816d63f8cca57467177b6d84cca8565
 COPY elixir-source/ /opt/elixir-source/
 WORKDIR /opt/elixir-source
 RUN make -j2 compile && make install && \

@@ -1,8 +1,10 @@
 # Native runtime image: staging prerequisite
 
 `build-image.sh` creates a `linux/amd64` image from **git-archived tracked
-sources only**, pinning libbeam to `5a8c663b819d5d24bde4fbbb7f7099385f090890`
-and the Elixir compiler/runtime to `13299af2b91a6aff7e430f25849f586c02b3231f`.
+sources only**, pinning libbeam to `5a8c663b819d5d24bde4fbbb7f7099385f090890`,
+the Elixir compiler/runtime to `13299af2b91a6aff7e430f25849f586c02b3231f`,
+and the OTP 29.1.2 base image to
+`hexpm/elixir@sha256:8c1b44690f7b337328869b7bcfa5b5ecc816d63f8cca57467177b6d84cca8565`.
 The image tag is the Midgard source commit; no credential or working-tree file
 enters the build context. The manually dispatched `Build runtime image` GitHub
 Actions workflow runs the OTP 29 BIF test, builds on an amd64 runner, and
