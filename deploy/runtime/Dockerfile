@@ -16,12 +16,16 @@ RUN c++ -std=c++17 -O2 -I/build/libbeam/libbeam/include \
     bazel-bin/libbeam/libcore.a -lz -pthread -o /build/libbeam_host
 
 # Compile against the same Elixir and OTP versions as the pinned compiler.
-FROM hexpm/elixir@sha256:8c1b44690f7b337328869b7bcfa5b5ecc816d63f8cca57467177b6d84cca8565
+FROM hexpm/elixir@sha256:8c1b44690f7b337328869b7bcfa5b5ecc816d63f8cca57467177b6d84cca8565 AS elixir-build
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential && \
+    rm -rf /var/lib/apt/lists/*
 COPY elixir-source/ /opt/elixir-source/
 WORKDIR /opt/elixir-source
 RUN make -j2 compile && make install && \
     elixir -e 'unless System.version() == "1.21.0-dev", do: System.halt(1)'
 
+FROM hexpm/elixir@sha256:8c1b44690f7b337328869b7bcfa5b5ecc816d63f8cca57467177b6d84cca8565
+COPY --from=elixir-build /usr/local/lib/elixir/ /usr/local/lib/elixir/
 WORKDIR /opt/midgard
 COPY midgard-source/ ./
 COPY --from=native /build/libbeam_host /opt/midgard/apps/libbeam_elixir/priv/libbeam_host
