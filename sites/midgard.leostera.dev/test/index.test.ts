@@ -93,12 +93,12 @@ function runtimeHarness() {
 test("landing, dashboard, worker detail and assets are served by the Worker asset binding", async () => {
 	state.calls = 0;
 	state.assets = [];
-	for (const path of ["/", "/workers", "/workers/hello_abcd1234567890ab", "/assets/app.css", "/assets/favicon.svg"]) {
+	for (const path of ["/", "/erlang", "/gleam", "/workers", "/workers/hello_abcd1234567890ab", "/assets/app.css", "/assets/favicon.svg"]) {
 		const response = await worker.fetch(visit(path), env);
 		expect(response.status).toBe(200);
 		expect(response.headers.get("cache-control")).toBe(path.startsWith("/assets/") ? "public, max-age=31536000, immutable" : "no-store");
 	}
-	expect(state.assets).toEqual(["/", "/", "/", "/assets/app.css", "/assets/favicon.svg"]);
+	expect(state.assets).toEqual(["/", "/", "/", "/", "/", "/assets/app.css", "/assets/favicon.svg"]);
 	expect((await worker.fetch(visit("/api/deployments/ready"), env)).status).toBe(204);
 	expect(state.calls).toBe(1);
 });
