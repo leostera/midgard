@@ -11,6 +11,6 @@ mix packer.inspect examples/gleam_worker/amber_worker.midgard
 mix midgard.deploy --artifact examples/gleam_worker/amber_worker.midgard
 ```
 
-After deploying, append `/hello` or `/hello/joe` to the printed route prefix and open it in a browser. [Try the deployed Gleam example](https://midgard.leostera.dev/run/amber_worker_76885c9c95f26ce3/hello/joe): `GET /hello/joe` responds with `Hello from joe\n` as `text/plain`; unlike the earlier raw-byte echo fixture it does **not** return an attachment. Each redeploy receives a new immutable route.
+After deploying, append `/hello` or `/hello/joe` to the printed route prefix and open it in a browser. [Try the deployed Gleam example](https://midgard.leostera.dev/run/amber_worker_e9dfb376334b222c/hello/joe): `GET /hello/joe` responds with `hello, joe!` as `text/plain`; `/hello` defaults to `hello, world!`. Each redeploy receives a new immutable route.
 
 Packer runs the trusted Gleam compiler's `export erlang-shipment`, includes only `.app`-declared production modules, and refuses native resources. Gleam's undeclared generated CLI `@@main` is not a worker module. All declared production dependencies must be packaged. The public host independently verifies and admits the exact BEAM group; successful execution of this small example does not guarantee that another Gleam project's library closure runs in libbeam.

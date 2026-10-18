@@ -24,7 +24,7 @@ skip_headers(Count, <<NameSize:8, ValueSize:16, _Name:NameSize/binary,
     skip_headers(Count - 1, Rest);
 skip_headers(_, _) -> error.
 
-route(<<"GET">>, <<"/hello">>) -> reply(200, <<"Hello from Erlang!\n">>);
+route(<<"GET">>, <<"/hello">>) -> reply(200, erlang_helper:hello(<<"world">>));
 route(<<"GET">>, <<"/hello/", Name/binary>>) ->
     case valid_name(Name) of
         true -> reply(200, erlang_helper:hello(Name));

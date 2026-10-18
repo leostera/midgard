@@ -54,7 +54,7 @@ try {
   execFileSync("mix", ["deps.get"], { cwd: project });
   const result = execFileSync("mix", ["midgard.deploy", "--endpoint", origin], { cwd: project, encoding: "utf8" });
   assert.match(result, /Deployed demo_worker/);
-  assert.equal(await (await fetch(`${origin}/run/demo_worker/hello`)).text(), "Hello from DemoWorker!\n");
+  assert.equal(await (await fetch(`${origin}/run/demo_worker/hello`)).text(), "hello, world!");
 
   await page.goto(origin, { waitUntil: "networkidle" });
   assert.match(await page.locator(".worker-table").textContent(), /demo_worker[\s\S]*Deployed/);
@@ -92,7 +92,7 @@ try {
   const original = readFileSync(beam);
   writeFileSync(beam, Buffer.concat([Buffer.from([0]), original.subarray(1)]));
   assert.throws(() => execFileSync("mix", ["midgard.deploy", "--artifact", join(project, "demo_worker.midgard"), "--endpoint", origin], { cwd: project, stdio: "pipe" }), /checksum mismatch/);
-  assert.equal(await (await fetch(`${origin}/run/demo_worker/hello`)).text(), "Hello from DemoWorker!\n");
+  assert.equal(await (await fetch(`${origin}/run/demo_worker/hello`)).text(), "hello, world!");
   assert.deepEqual(errors, []);
   console.log("Browser guide and responsive deployed inventory; CLI upload, Isolate call and rejected update passed.");
 } finally {

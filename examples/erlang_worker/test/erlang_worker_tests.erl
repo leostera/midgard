@@ -2,9 +2,9 @@
 -include_lib("eunit/include/eunit.hrl").
 
 http_routes_test() ->
-    ?assertEqual(response(200, <<"Hello from Erlang!\n">>),
+    ?assertEqual(response(200, <<"hello, world!">>),
                  erlang_worker:handle(request(<<"GET">>, <<"/hello">>))),
-    ?assertEqual(response(200, <<"Hello from joe\n">>),
+    ?assertEqual(response(200, <<"hello, joe!">>),
                  erlang_worker:handle(request(<<"GET">>, <<"/hello/joe">>))),
     ?assertEqual(response(404, <<"Not found\n">>),
                  erlang_worker:handle(request(<<"GET">>, <<"/">>))),

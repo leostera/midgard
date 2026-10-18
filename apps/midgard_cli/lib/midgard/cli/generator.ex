@@ -127,9 +127,13 @@ defmodule Midgard.CLI.Generator do
         use Midgard.Worker
 
         @impl true
+        def handle_request(%Midgard.Request{method: "GET", path: "/hello/" <> name})
+            when name != "",
+          do: {200, __MODULE__.Greeting.hello(name)}
+
         def handle_request(%Midgard.Request{method: "GET", path: path})
             when path in ["/", "/hello"],
-          do: {200, __MODULE__.Greeting.hello()}
+          do: {200, __MODULE__.Greeting.hello("world")}
 
         def handle_request(_request), do: {404, "Not found\n"}
       end
@@ -139,7 +143,7 @@ defmodule Midgard.CLI.Generator do
     greeting =
       ~S"""
       defmodule __MODULE__.Greeting do
-        def hello, do: "Hello from __MODULE__!\n"
+        def hello(name), do: "hello, " <> name <> "!"
       end
       """
       |> String.replace("__MODULE__", module)
@@ -149,13 +153,13 @@ defmodule Midgard.CLI.Generator do
       defmodule __MODULE__Test do
         use ExUnit.Case, async: true
 
-        test "handles the hello route through the provisional binary entrypoint" do
-          request = Midgard.Request.new("GET", "/hello")
-          assert __MODULE__.handle_request(request) == {200, "Hello from __MODULE__!\n"}
-          assert __MODULE__.handle_request(Midgard.Request.new("GET", "/")) ==
-                   {200, "Hello from __MODULE__!\n"}
+        test "greets the path name through the provisional binary entrypoint" do
+          request = Midgard.Request.new("GET", "/hello/ada")
+          assert __MODULE__.handle_request(request) == {200, "hello, ada!"}
+          assert __MODULE__.handle_request(Midgard.Request.new("GET", "/hello")) ==
+                   {200, "hello, world!"}
           assert {:ok, bytes} = Midgard.Protocol.request(request)
-          assert {:ok, {200, "Hello from __MODULE__!\n"}} =
+          assert {:ok, {200, "hello, ada!"}} =
                    bytes |> __MODULE__.__midgard_call__() |> Midgard.Protocol.decode_response()
         end
 

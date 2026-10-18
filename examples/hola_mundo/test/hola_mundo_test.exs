@@ -3,11 +3,11 @@ defmodule HolaMundoTest do
 
   test "handles a named hello route through the binary entrypoint" do
     request = Midgard.Request.new("GET", "/hello/joe")
-    assert HolaMundo.handle_request(request) == {200, "Hello from joe\n"}
+    assert HolaMundo.handle_request(request) == {200, "hello, joe!"}
 
     assert {:ok, bytes} = Midgard.Protocol.request(request)
 
-    assert {:ok, {200, "Hello from joe\n"}} =
+    assert {:ok, {200, "hello, joe!"}} =
              bytes |> HolaMundo.__midgard_call__() |> Midgard.Protocol.decode_response()
   end
 

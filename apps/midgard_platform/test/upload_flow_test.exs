@@ -81,13 +81,14 @@ if System.get_env("MIDGARD_NATIVE_UPLOAD") == "1" do
       assert modules > 300
 
       conn =
-        Plug.Test.conn(:get, "http://127.0.0.1/run/upload_sample/hello")
+        Plug.Test.conn(:get, "http://127.0.0.1/run/upload_sample/hello/joe")
         |> Midgard.Platform.Router.call(Midgard.Platform.Router.init([]))
 
       assert conn.status == 200,
              "worker invocation returned HTTP #{conn.status}: #{conn.resp_body}"
 
-      assert conn.resp_body == "Hello from UploadSample!\n"
+      assert Plug.Conn.get_resp_header(conn, "content-type") == ["text/plain; charset=utf-8"]
+      assert conn.resp_body == "hello, joe!"
 
       index =
         Plug.Test.conn(:get, "http://127.0.0.1/")
@@ -128,9 +129,9 @@ if System.get_env("MIDGARD_NATIVE_UPLOAD") == "1" do
       assert public.status == 201
       assert %{"slug" => ^public_slug, "path" => "/run/" <> _} = :json.decode(public.resp_body)
 
-      assert Plug.Test.conn(:get, "http://127.0.0.1/run/#{public_slug}/hello")
+      assert Plug.Test.conn(:get, "http://127.0.0.1/run/#{public_slug}/hello/joe")
              |> Midgard.Platform.Router.call(Midgard.Platform.Router.init([]))
-             |> Map.get(:resp_body) == "Hello from UploadSample!\n"
+             |> Map.get(:resp_body) == "hello, joe!"
 
       System.delete_env("MIDGARD_CONTAINER_HTTP")
       System.delete_env("MIDGARD_INTERNAL_UPLOAD_KEY")
@@ -155,7 +156,7 @@ if System.get_env("MIDGARD_NATIVE_UPLOAD") == "1" do
       assert %{live: %{modules: ^modules}, busy: false} =
                Enum.find(Workspace.list(), &(&1.slug == "upload_sample"))
 
-      assert Plug.Test.conn(:get, "http://127.0.0.1/run/upload_sample/hello")
+      assert Plug.Test.conn(:get, "http://127.0.0.1/run/upload_sample/hello/joe")
              |> Midgard.Platform.Router.call(Midgard.Platform.Router.init([]))
              |> Map.get(:status) == 200
 
@@ -166,7 +167,7 @@ if System.get_env("MIDGARD_NATIVE_UPLOAD") == "1" do
       assert Enum.sort(Enum.map(Workspace.list(), &{&1.slug, &1.live})) ==
                [{"upload_sample", nil}, {public_slug, nil}]
 
-      assert Plug.Test.conn(:get, "http://127.0.0.1/run/upload_sample/hello")
+      assert Plug.Test.conn(:get, "http://127.0.0.1/run/upload_sample/hello/joe")
              |> Midgard.Platform.Router.call(Midgard.Platform.Router.init([]))
              |> Map.get(:status) == 404
     end

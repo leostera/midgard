@@ -56,7 +56,7 @@ fn has_body(bytes: BitArray, count: Int, body_size: Int) -> Bool {
 fn dispatch(method: BitArray, path: BitArray) -> BitArray {
   case method, path {
     <<"GET":utf8>>, <<"/hello":utf8>> ->
-      amber_helper.response(200, <<"Hello from Gleam!\n":utf8>>)
+      amber_helper.response(200, amber_helper.hello(<<"world":utf8>>))
     <<"GET":utf8>>, <<"/hello/":utf8, name:bits>> ->
       case name {
         <<>> -> not_found()

@@ -6,5 +6,5 @@ pub fn response(status: Int, body: BitArray) -> BitArray {
 }
 
 pub fn hello(name: BitArray) -> BitArray {
-  <<"Hello from ":utf8, name:bits, 10>>
+  <<"hello, ":utf8, name:bits, "!":utf8>>
 }
