@@ -28,6 +28,7 @@ defmodule Packer do
     output = Keyword.get(opts, :output, "#{app}.midgard")
 
     with :ok <- validate_mix_options(app, entry, output),
+         :ok <- validate_runtime_toolchain(entry),
          {:ok, local} <- local_modules(app),
          {:ok, dependencies} <- Packer.Dependencies.collect(),
          {:ok, modules, dep_records} <- mix_modules(app, local, dependencies, opts) do
@@ -66,6 +67,12 @@ defmodule Packer do
     else
       {:error, "expected current Mix :app, :entry module and output directory"}
     end
+  end
+
+  defp validate_runtime_toolchain(entry) do
+    if String.starts_with?(module_name(entry), "Elixir."),
+      do: Packer.RuntimeToolchain.validate_elixir(),
+      else: :ok
   end
 
   defp module_name(entry) when is_atom(entry), do: Atom.to_string(entry)

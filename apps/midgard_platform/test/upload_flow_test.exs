@@ -10,8 +10,22 @@ if System.get_env("MIDGARD_NATIVE_UPLOAD") == "1" do
       project = Path.join(root, "upload_sample")
       workspace = Path.join(root, "workspace")
       checkout = Path.expand("../../..", __DIR__)
+      cli_source = Path.join(root, "midgard_cli")
+      mix_home = Path.join(root, "mix-home")
+      hex_home = Path.join(root, "hex-home")
+      mix_env = [{"MIX_HOME", mix_home}, {"HEX_HOME", hex_home}]
       File.mkdir_p!(root)
-      assert {:ok, ^project} = Midgard.CLI.Generator.generate("upload_sample", project, checkout)
+      File.cp_r!(Path.join(checkout, "apps/midgard_cli"), cli_source)
+      mix!("archive.build", [], cli_source, mix_env)
+      archive = Path.join(cli_source, "midgard_cli-0.1.0.ez")
+      mix!("archive.install", [archive, "--force"], checkout, mix_env)
+
+      mix!(
+        "midgard.new",
+        ["upload_sample", "--path", project, "--midgard-root", checkout],
+        checkout,
+        mix_env
+      )
 
       original = Application.get_env(:midgard_platform, :workspace)
       original_container = System.get_env("MIDGARD_CONTAINER_HTTP")
@@ -56,15 +70,12 @@ if System.get_env("MIDGARD_NATIVE_UPLOAD") == "1" do
           else: Application.delete_env(:midgard_platform, :workspace)
       end)
 
-      {_, 0} = System.cmd("mix", ["deps.get"], cd: project, stderr_to_stdout: true)
+      mix!("deps.get", [], project, mix_env)
+      mix!("test", [], project, mix_env)
 
-      {output, code} =
-        System.cmd("mix", ["midgard.deploy", "--endpoint", "http://127.0.0.1:#{port}"],
-          cd: project,
-          stderr_to_stdout: true
-        )
+      output =
+        mix!("midgard.deploy", ["--endpoint", "http://127.0.0.1:#{port}"], project, mix_env)
 
-      assert code == 0, output
       assert output =~ "Deployed upload_sample"
       assert [%{slug: "upload_sample", live: %{modules: modules}}] = Workspace.list()
       assert modules > 300
@@ -73,7 +84,9 @@ if System.get_env("MIDGARD_NATIVE_UPLOAD") == "1" do
         Plug.Test.conn(:get, "http://127.0.0.1/run/upload_sample/hello")
         |> Midgard.Platform.Router.call(Midgard.Platform.Router.init([]))
 
-      assert conn.status == 200
+      assert conn.status == 200,
+             "worker invocation returned HTTP #{conn.status}: #{conn.resp_body}"
+
       assert conn.resp_body == "Hello from UploadSample!\n"
 
       index =
@@ -132,6 +145,7 @@ if System.get_env("MIDGARD_NATIVE_UPLOAD") == "1" do
           "mix",
           ["midgard.deploy", "--artifact", shipment, "--endpoint", "http://127.0.0.1:#{port}"],
           cd: project,
+          env: mix_env,
           stderr_to_stdout: true
         )
 
@@ -155,6 +169,14 @@ if System.get_env("MIDGARD_NATIVE_UPLOAD") == "1" do
       assert Plug.Test.conn(:get, "http://127.0.0.1/run/upload_sample/hello")
              |> Midgard.Platform.Router.call(Midgard.Platform.Router.init([]))
              |> Map.get(:status) == 404
+    end
+
+    defp mix!(task, args, directory, env) do
+      {output, status} =
+        System.cmd("mix", [task | args], cd: directory, env: env, stderr_to_stdout: true)
+
+      if status != 0, do: flunk("mix #{task} failed with status #{status}:\n#{output}")
+      output
     end
   end
 end

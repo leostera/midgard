@@ -109,8 +109,12 @@ MIDGARD_NATIVE_UPLOAD=1 mix test apps/midgard_platform/test/upload_flow_test.exs
 
 These are run from the repository root. The native/compiler tests require the
 native host and pinned compiler image built above. The pure local tests need
-neither Docker nor libbeam. For optional desktop/mobile browser coverage with
-Chrome installed:
+neither Docker nor libbeam. The `MIDGARD_NATIVE_UPLOAD=1` flow builds and installs
+the CLI archive into an isolated `MIX_HOME`, creates a fresh worker project,
+runs its tests, deploys it over HTTP, and verifies a real Isolate invocation.
+Run it under the pinned Elixir source revision and OTP 29 described in the
+Generated project README; other Elixir revisions are rejected before upload.
+For optional desktop/mobile browser coverage with Chrome installed:
 
 ```sh
 cd apps/midgard_platform

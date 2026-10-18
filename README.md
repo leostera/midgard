@@ -43,7 +43,7 @@ defmodule MyWorker do
 end
 ```
 
-Try a complete project (Elixir 1.21.0-dev and OTP 27+; tested with OTP 28):
+Elixir workers must use Elixir source revision `13299af2b91a6aff7e430f25849f586c02b3231f` on OTP 29, matching the live runtime. Packer rejects other Elixir source revisions before building a shipment.
 
 ```sh
 cd examples/hello_worker
@@ -55,7 +55,7 @@ mix packer.inspect hello_worker.midgard
 
 You'll get `hello_worker.midgard/`, with `manifest.json` and the worker's exact-name BEAM files under `modules/`. Tests exercise the request handler on ordinary OTP; inspection checks the artifact and reports static compatibility information. See the [Elixir worker API](docs/worker-request-api.md) for the request fields and response contract.
 
-Install the CLI from Git with one Mix command (Elixir 1.21.0-dev, OTP 28):
+Install the CLI from Git with one Mix command:
 
 ```sh
 mix archive.install github leostera/midgard --sparse apps/midgard_cli --app midgard_cli
@@ -67,7 +67,17 @@ curl https://midgard.leostera.dev/run/my_worker_0123456789abcdef/hello
 ```
 
 The archive supplies the Mix tasks; the new project fetches its SDK and Packer
-from the **same pinned Git commit**. Archive installation runs source code from
+from the **same pinned Git commit**. Before building an Elixir worker, compile
+and select the exact runtime Elixir source revision above:
+
+```sh
+git clone https://github.com/elixir-lang/elixir.git /tmp/midgard-elixir
+git -C /tmp/midgard-elixir checkout 13299af2b91a6aff7e430f25849f586c02b3231f
+make -C /tmp/midgard-elixir compile install PREFIX=/tmp/midgard-toolchain
+export PATH="/tmp/midgard-toolchain/bin:$PATH"
+```
+
+Archive installation runs source code from
 the repository; review and trust it before installing. To develop against a
 local checkout, pass `--midgard-root /path/to/midgard` to `mix midgard.new`
 instead. The default deploy target is `https://midgard.leostera.dev`; no token
@@ -77,7 +87,6 @@ shipments and 24 MB per upload; there is no authenticated ownership or overwrite
 Use `--endpoint http://127.0.0.1:4000` for a local platform with a matching
 native libbeam host; see [local platform setup](apps/midgard_platform/README.md).
 The generator never overwrites an existing path.
->>>>>>> 2e9461a (feat: upgrade to elixir 1.21.0-dev and new example)
 
 ## Bring an Erlang or Gleam worker
 
