@@ -31,10 +31,10 @@ mix test
 mix midgard.deploy
 ```
 
-No token or account is needed. Deployment builds on your machine and prints a new, immutable **Route prefix**. Append a path your worker handles; the generated worker responds at `/hello` (and `/`). For example, replace the route ID below with the one printed by your deploy:
+No token or account is needed. Deployment builds on your machine and prints a new, immutable **Worker URL**. Append a path your worker handles; the generated worker responds at `/hello` (and `/`). For example, replace the worker ID below with the one printed by your deploy:
 
 ```sh
-curl https://midgard.leostera.dev/run/hello_world_0123456789abcdef/hello
+curl https://hello-world-0123456789abcdef.midgard.leostera.dev/hello
 ```
 
 Already have a worker project? Reinstall the archive with `--force`, then run `mix midgard.deploy` inside that project. Its original route remains unchanged; a new deploy receives a new route. Archive installation executes code from GitHub; review and trust the source before installing it. The generated project pins its SDK and Packer dependencies to the same Git commit as the installed CLI.
@@ -74,8 +74,8 @@ mix archive.install github leostera/midgard --sparse apps/midgard_cli --app midg
 mix midgard.new my_worker
 cd my_worker && mix deps.get && mix test
 mix midgard.deploy
-# Copy the Route printed above and append hello, for example:
-curl https://midgard.leostera.dev/run/my_worker_0123456789abcdef/hello
+# Copy the Worker URL printed above and append hello, for example:
+curl https://my-worker-0123456789abcdef.midgard.leostera.dev/hello
 ```
 
 The archive supplies the Mix tasks; the new project fetches its SDK and Packer

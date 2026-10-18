@@ -8,9 +8,14 @@ Worker limits requests and forwards allowed HTTP paths to Bandit through its
 private TCP port. No `container.exec()` runs for a visitor request.
 
 **Public demo: tokenless uploads and calls.** The edge accepts bounded binary
-shipments from `mix midgard.deploy`, gives each upload a random immutable route,
-and forwards it with a DO-managed internal key to the existing
-`Midgard.Platform.Router`. The DO persists exact shipment bytes in SQLite; a
+shipments from `mix midgard.deploy`, gives each upload a random immutable
+hostname (`<app>-<id>.midgard.leostera.dev`), and forwards it with a DO-managed
+internal key to the existing `Midgard.Platform.Router`. The public edge rewrites
+that hostname to the platform's internal `/run/<slug>/` route; `/run` is not a
+public URL. Each exact hostname is attached to the edge Worker through the
+Cloudflare Workers Domains API. Configure the Worker secret
+`CLOUDFLARE_API_TOKEN` with a token scoped to Workers Scripts Write before
+accepting deployments. The DO persists exact shipment bytes in SQLite; a
 fresh Container must independently verify and re-admit every stored shipment
 before the dashboard or call routes become available. Browser source editing
 and compilation remain local-only. Anonymous routes are publicly callable; no

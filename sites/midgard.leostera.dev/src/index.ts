@@ -1,6 +1,7 @@
 import { DurableObject, exports as self } from "cloudflare:workers";
 
 const origin = "https://midgard.leostera.dev";
+const workerDomain = ".midgard.leostera.dev";
 const backend = "http://127.0.0.1:4000";
 const mediaType = "application/vnd.midgard.shipment.v1";
 const maxUpload = 24_000_000;
@@ -12,11 +13,23 @@ const inactivityMs = 10 * 60 * 1_000;
 const appName = /^[a-z][a-z0-9_]{0,39}$/;
 const workerName = /^[a-z][a-z0-9_]*_[0-9a-f]{16}$/;
 
-type Saved = { slug: string; app: string; digest: string; size: number; checksum: string };
+type Saved = { slug: string; app: string; digest: string; size: number; checksum: string; domain_attached?: number };
 type Chunk = { data: ArrayBuffer };
 
 function text(message: string, status: number): Response {
 	return new Response(`${message}\n`, { status, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
+}
+
+function workerHostname(slug: string): string {
+	return `${slug.replaceAll("_", "-")}${workerDomain}`;
+}
+
+function workerSlug(hostname: string): string | null {
+	if (!hostname.endsWith(workerDomain)) return null;
+	const label = hostname.slice(0, -workerDomain.length);
+	if (label.includes(".")) return null;
+	const slug = label.replaceAll("-", "_");
+	return workerName.test(slug) ? slug : null;
 }
 
 function hex(bytes: Uint8Array): string {
@@ -67,7 +80,11 @@ export class NativeRuntime extends DurableObject<Env> {
 		super(ctx, env);
 		ctx.blockConcurrencyWhile(async () => {
 			const sql = ctx.storage.sql;
-			sql.exec("CREATE TABLE IF NOT EXISTS shipments (slug TEXT PRIMARY KEY, app TEXT NOT NULL, digest TEXT NOT NULL, size INTEGER NOT NULL, checksum TEXT NOT NULL, active INTEGER NOT NULL)");
+			sql.exec("CREATE TABLE IF NOT EXISTS shipments (slug TEXT PRIMARY KEY, app TEXT NOT NULL, digest TEXT NOT NULL, size INTEGER NOT NULL, checksum TEXT NOT NULL, active INTEGER NOT NULL, domain_attached INTEGER NOT NULL DEFAULT 0)");
+			const shipmentColumns = sql.exec<{ name: string }>("PRAGMA table_info(shipments)").toArray();
+			if (!shipmentColumns.some(({ name }) => name === "domain_attached")) {
+				sql.exec("ALTER TABLE shipments ADD COLUMN domain_attached INTEGER NOT NULL DEFAULT 0");
+			}
 			sql.exec("CREATE TABLE IF NOT EXISTS chunks (slug TEXT NOT NULL, part INTEGER NOT NULL, data BLOB NOT NULL, PRIMARY KEY (slug, part))");
 			sql.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
 			if (sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'gateway'").toArray().length === 0) {
@@ -101,12 +118,13 @@ export class NativeRuntime extends DurableObject<Env> {
 		const container = this.ctx.container;
 		if (!container) throw new Error("Platform container binding is unavailable");
 		const sql = this.ctx.storage.sql;
-		const saved = sql.exec<Saved>("SELECT slug, app, digest, size, checksum FROM shipments WHERE active = 1 ORDER BY rowid").toArray();
+		const saved = sql.exec<Saved>("SELECT slug, app, digest, size, checksum, domain_attached FROM shipments WHERE active = 1 ORDER BY rowid").toArray();
 		// A DO eviction must not discard healthy, already-admitted Isolates. The
 		// host proves the full live digest set; missing or stale handles still
 		// require a fresh Container and exact shipment re-admission.
 		if (container.running) {
 			if (await this.matchesRunningHost(saved)) {
+				for (const shipment of saved) await this.ensureWorkerDomain(shipment);
 				console.log(JSON.stringify({ event: "restore_reused", count: saved.length }));
 				return;
 			}
@@ -133,6 +151,7 @@ export class NativeRuntime extends DurableObject<Env> {
 			if (admitted.digest !== shipment.digest || admitted.slug !== shipment.slug) {
 				throw new Error(`Stored shipment was not re-admitted: ${shipment.slug}`);
 			}
+			await this.ensureWorkerDomain(shipment);
 			console.log(JSON.stringify({ event: "restore_admitted", slug: shipment.slug }));
 		}
 	}
@@ -198,6 +217,40 @@ export class NativeRuntime extends DurableObject<Env> {
 		return this.portFetch(request, false);
 	}
 
+	private async attachWorkerDomain(hostname: string): Promise<void> {
+		const response = await fetch(
+			`https://api.cloudflare.com/client/v4/accounts/${this.env.CLOUDFLARE_ACCOUNT_ID}/workers/domains`,
+			{
+				method: "PUT",
+				headers: {
+					authorization: `Bearer ${this.env.CLOUDFLARE_API_TOKEN}`,
+					"content-type": "application/json",
+				},
+				body: JSON.stringify({
+					hostname,
+					service: this.env.CLOUDFLARE_WORKER_NAME,
+					zone_name: "leostera.dev",
+					enabled: true,
+					previews_enabled: false,
+				}),
+			},
+		);
+		const result = await response.json() as {
+			success?: boolean;
+			result?: { hostname?: string; service?: string; enabled?: boolean };
+		};
+		if (!response.ok || result.success !== true || result.result?.hostname !== hostname ||
+			result.result.service !== this.env.CLOUDFLARE_WORKER_NAME || result.result.enabled !== true) {
+			throw new Error(`Cloudflare could not attach worker domain (HTTP ${response.status})`);
+		}
+	}
+
+	private async ensureWorkerDomain(shipment: Saved): Promise<void> {
+		if (shipment.domain_attached === 1) return;
+		await this.attachWorkerDomain(workerHostname(shipment.slug));
+		this.ctx.storage.sql.exec("UPDATE shipments SET domain_attached = 1 WHERE slug = ?", shipment.slug);
+	}
+
 	private async deploy(request: Request, app: string): Promise<Response> {
 		if (this.busy) return text("A deployment is already running; retry shortly", 429);
 		if (!appName.test(app) || request.headers.get("content-type") !== mediaType || request.headers.has("origin")) {
@@ -234,8 +287,13 @@ export class NativeRuntime extends DurableObject<Env> {
 			if (result.slug !== route || !/^[a-f0-9]{64}$/.test(result.digest ?? "")) {
 				throw new Error("Platform returned an invalid admission response");
 			}
-			sql.exec("UPDATE shipments SET digest = ?, active = 1 WHERE slug = ? AND active = 0", result.digest, route);
-			return response;
+			const hostname = workerHostname(route);
+			await this.attachWorkerDomain(hostname);
+			sql.exec("UPDATE shipments SET digest = ?, domain_attached = 1, active = 1 WHERE slug = ? AND active = 0", result.digest, route);
+			return Response.json({ ...result, path: `https://${hostname}/` }, {
+				status: response.status,
+				headers: { "cache-control": "no-store" },
+			});
 		} catch (error) {
 			console.error(JSON.stringify({ event: "deploy_failed", app, route, error: String(error) }));
 			if (route) this.discard(route);
@@ -261,7 +319,7 @@ export class NativeRuntime extends DurableObject<Env> {
 		return {
 			slug: saved.slug,
 			name: saved.app,
-			url: `/run/${saved.slug}/`,
+			url: `https://${workerHostname(saved.slug)}/`,
 			digest: saved.digest,
 			size: saved.size,
 		};
@@ -306,15 +364,18 @@ export class NativeRuntime extends DurableObject<Env> {
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
 		const url = new URL(request.url);
+		const mainHost = url.origin === origin;
+		const slug = workerSlug(url.hostname);
+		const isWorkerHost = url.protocol === "https:" && slug !== null;
 		const app = url.pathname.startsWith("/api/deployments/") ? url.pathname.slice("/api/deployments/".length) : null;
-		const isUpload = request.method === "POST" && app !== null && appName.test(app) && !url.search;
-		const isReady = request.method === "GET" && url.pathname === "/api/deployments/ready" && !url.search;
-		const isFrontend = request.method === "GET" &&
+		const isUpload = mainHost && request.method === "POST" && app !== null && appName.test(app) && !url.search;
+		const isReady = mainHost && request.method === "GET" && url.pathname === "/api/deployments/ready" && !url.search;
+		const isFrontend = mainHost && request.method === "GET" &&
 			(url.pathname === "/" || url.pathname === "/workers" || /^\/workers\/[a-z][a-z0-9_]*_[0-9a-f]{16}$/.test(url.pathname));
-		const isAsset = request.method === "GET" && url.pathname.startsWith("/assets/");
-		const isWorkerRead = request.method === "GET" && /^\/api\/workers(?:\/[a-z][a-z0-9_]*_[0-9a-f]{16})?$/.test(url.pathname) && !url.search;
-		const isCall = url.pathname.startsWith("/run/") && /^\/run\/[a-z][a-z0-9_]{0,39}\/.*$/.test(url.pathname) && ["GET", "POST", "PUT", "DELETE", "PATCH"].includes(request.method);
-		if (url.origin !== origin || (!isUpload && !isReady && !isWorkerRead && !isCall && !isFrontend && !isAsset)) {
+		const isAsset = mainHost && request.method === "GET" && url.pathname.startsWith("/assets/");
+		const isWorkerRead = mainHost && request.method === "GET" && /^\/api\/workers(?:\/[a-z][a-z0-9_]*_[0-9a-f]{16})?$/.test(url.pathname) && !url.search;
+		const isCall = isWorkerHost && ["GET", "POST", "PUT", "DELETE", "PATCH"].includes(request.method);
+		if ((!mainHost && !isWorkerHost) || (!isUpload && !isReady && !isWorkerRead && !isCall && !isFrontend && !isAsset)) {
 			return text("Not found", 404);
 		}
 		const ip = request.headers.get("cf-connecting-ip");
@@ -334,9 +395,13 @@ export default {
 			return new Response(response.body, { status: response.status, headers });
 		}
 		try {
-			// Older DO instances can stay alive across edge deployments. Use the
-			// always-supported inventory path as the readiness probe as well.
-			const upstream = isReady ? new Request(`${origin}/`, request) : request;
+			// Public worker hostnames are immutable aliases for the internal route
+			// slug. Keep /run out of the public URL surface.
+			const upstream = isReady
+				? new Request(`${origin}/`, request)
+				: isCall
+					? new Request(`${origin}/run/${slug}${url.pathname}${url.search}`, request)
+					: request;
 			const response = await self.NativeRuntime.getByName("platform").fetch(upstream);
 			if (isReady && [200, 204].includes(response.status)) {
 				await response.body?.cancel();

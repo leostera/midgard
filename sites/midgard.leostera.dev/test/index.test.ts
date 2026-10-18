@@ -1,18 +1,30 @@
 import { expect, mock, test } from "bun:test";
 import { Database } from "bun:sqlite";
 
-const state = { calls: 0, assets: [] as string[], limited: false, buildsLimited: false };
+const state = { calls: 0, assets: [] as string[], upstream: [] as string[], limited: false, buildsLimited: false };
+const domainRequests: Array<{ url: string; body: Record<string, unknown> }> = [];
+globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+	const url = input instanceof Request ? input.url : input instanceof URL ? input.href : input;
+	const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+	domainRequests.push({ url, body });
+	return Response.json({
+		success: true,
+		result: { hostname: body.hostname, service: "midgard-leostera-dev", enabled: true },
+	});
+}) as typeof fetch;
 mock.module("cloudflare:workers", () => ({
 	DurableObject: class {
 		ctx: unknown;
-		constructor(ctx: unknown) { this.ctx = ctx; }
+		env: unknown;
+		constructor(ctx: unknown, env: unknown) { this.ctx = ctx; this.env = env; }
 	},
 	exports: {
 		NativeRuntime: {
 			getByName(name: string) {
 				expect(name).toBe("platform");
-				return { fetch: async () => {
+				return { fetch: async (request: Request) => {
 					state.calls++;
+					state.upstream.push(request.url);
 					return new Response("<h1>Workers</h1>", { headers: { "content-type": "text/html" } });
 				} };
 			},
@@ -27,6 +39,9 @@ const env = {
 	} },
 	HTTP_RATE: { limit: async () => ({ success: !state.limited }) },
 	DEPLOY_RATE: { limit: async () => ({ success: !state.buildsLimited }) },
+	CLOUDFLARE_ACCOUNT_ID: "test-account",
+	CLOUDFLARE_API_TOKEN: "test-token",
+	CLOUDFLARE_WORKER_NAME: "midgard-leostera-dev",
 } as unknown as Env;
 const visit = (path: string, method = "GET", headers: Record<string, string> = {}) => new Request(`https://midgard.leostera.dev${path}`, {
 	method,
@@ -74,7 +89,8 @@ function runtimeHarness() {
 		exec(query: string, ...values: unknown[]) {
 			const statement = db.query(query);
 			const bindings = values.map((value) => value instanceof ArrayBuffer ? new Uint8Array(value) : value);
-			const result = query.trim().toUpperCase().startsWith("SELECT") ? statement.all(...bindings) : (statement.run(...bindings), []);
+			const readOnly = /^(SELECT|PRAGMA)/i.test(query.trim());
+			const result = readOnly ? statement.all(...bindings) : (statement.run(...bindings), []);
 			return {
 				toArray: () => result,
 				one: () => result[0],
@@ -101,6 +117,21 @@ test("landing, dashboard, worker detail and assets are served by the Worker asse
 	expect(state.assets).toEqual(["/", "/", "/", "/assets/app.css", "/assets/favicon.svg"]);
 	expect((await worker.fetch(visit("/api/deployments/ready"), env)).status).toBe(204);
 	expect(state.calls).toBe(1);
+});
+
+test("worker subdomains mask internal /run routes and public /run paths are rejected", async () => {
+	state.calls = 0;
+	state.upstream = [];
+	const host = "hello_0123456789abcdef".replaceAll("_", "-") + ".midgard.leostera.dev";
+	const response = await worker.fetch(new Request(`https://${host}/hello/joe`, {
+		headers: { "cf-connecting-ip": "192.0.2.1" },
+	}), env);
+	expect(response.status).toBe(200);
+	expect(state.upstream).toEqual(["https://midgard.leostera.dev/run/hello_0123456789abcdef/hello/joe"]);
+
+	state.calls = 0;
+	expect((await worker.fetch(visit("/run/hello_0123456789abcdef/hello/joe"), env)).status).toBe(404);
+	expect(state.calls).toBe(0);
 });
 
 test("public worker inventory is served by the runtime API", async () => {
@@ -165,6 +196,7 @@ test("a DO restart reuses only the exact admitted digest set in a surviving Cont
 });
 
 test("anonymous uploads receive immutable routes and recover exact stored bytes", async () => {
+	domainRequests.length = 0;
 	const { ctx, container, requests, starts, destroys } = runtimeHarness();
 	const runtime = new NativeRuntime(ctx, env);
 	expect((await runtime.fetch(new Request("https://midgard.leostera.dev/api/deployments/ready"))).status).toBe(204);
@@ -176,12 +208,20 @@ test("anonymous uploads receive immutable routes and recover exact stored bytes"
 	expect(response.status).toBe(201);
 	const result = await response.json() as { slug: string };
 	expect(result.slug).toMatch(/^hello_[0-9a-f]{16}$/);
+	expect(domainRequests[0]?.url).toBe("https://api.cloudflare.com/client/v4/accounts/test-account/workers/domains");
+	expect(domainRequests[0]?.body).toMatchObject({
+		hostname: `${result.slug.replaceAll("_", "-")}.midgard.leostera.dev`,
+		service: "midgard-leostera-dev",
+		zone_name: "leostera.dev",
+		enabled: true,
+		previews_enabled: false,
+	});
 	const inventory = await runtime.fetch(new Request("https://midgard.leostera.dev/api/workers"));
 	const listed = await inventory.json() as { workers: Array<{ slug: string; name: string; url: string; digest: string; size: number }> };
 	expect(listed.workers).toEqual([{
 		slug: result.slug,
 		name: "hello",
-		url: `/run/${result.slug}/`,
+		url: `https://${result.slug.replaceAll("_", "-")}.midgard.leostera.dev/`,
 		digest: "a".repeat(64),
 		size: body.byteLength,
 	}]);

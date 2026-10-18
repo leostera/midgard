@@ -9,7 +9,7 @@ mix deps.get
 mix test
 mix midgard.deploy
 # Append /hello/joe to the Route prefix printed by deploy. For example:
-curl https://midgard.leostera.dev/run/hola_mundo_0123456789abcdef/hello/joe
+curl https://hola-mundo-0123456789abcdef.midgard.leostera.dev/hello/joe
 ```
 
 Run the archive install from the repository root; if you're already in this directory, omit the `cd`. Replace the example route ID with the one printed by your deployment. To inspect the artifact locally, run `mix midgard.build` then `mix packer.inspect hola_mundo.midgard`. A successful deployment response means the exact shipment was verified and admitted by the public libbeam host.

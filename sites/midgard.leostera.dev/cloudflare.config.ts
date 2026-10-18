@@ -27,6 +27,9 @@ export default defineConfig({
 		observability: { enabled: true, logs: { enabled: true }, traces: { enabled: true, headSamplingRate: 0.1 } },
 		env: {
 			ASSETS: bindings.assets(),
+			CLOUDFLARE_ACCOUNT_ID: bindings.text("0f436d2aabf1f872be90b8dd9d5715e6"),
+			CLOUDFLARE_API_TOKEN: bindings.secret(),
+			CLOUDFLARE_WORKER_NAME: bindings.text("midgard-leostera-dev"),
 			HTTP_RATE: bindings.rateLimit({ namespace: "1003", simple: { limit: 120, period: 60 } }),
 			DEPLOY_RATE: bindings.rateLimit({ namespace: "1004", simple: { limit: 2, period: 60 } }),
 		},

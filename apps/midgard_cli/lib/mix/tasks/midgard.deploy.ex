@@ -54,8 +54,12 @@ defmodule Mix.Tasks.Midgard.Deploy do
         "Deployed #{result["slug"]} · #{result["modules"]} BEAMs · #{url |> URI.parse() |> Map.get(:host)}"
       )
 
-      route_prefix = "#{URI.to_string(endpoint)}#{result["path"]}"
-      Mix.shell().info("Route prefix: #{route_prefix}")
+      route_prefix =
+        if String.starts_with?(result["path"], "https://"),
+          do: result["path"],
+          else: "#{URI.to_string(endpoint)}#{result["path"]}"
+
+      Mix.shell().info("Worker URL: #{route_prefix}")
       Mix.shell().info(call_hint(upload.manifest, route_prefix))
     else
       {:error, reason} -> Mix.raise("Midgard deployment failed: #{inspect(reason)}")
@@ -181,10 +185,14 @@ defmodule Mix.Tasks.Midgard.Deploy do
       %{"slug" => slug, "digest" => digest, "modules" => count, "path" => path} = result
       when is_binary(slug) and is_binary(digest) and is_integer(count) and count in 1..512 and
              is_binary(path) ->
+        expected_local_path = "/run/#{slug}/"
+        expected_public_url = "https://#{String.replace(slug, "_", "-")}.midgard.leostera.dev/"
+
         if (slug == app or
               (String.starts_with?(slug, String.slice(app, 0, 23) <> "_") and
                  String.match?(slug, ~r/\A[a-z][a-z0-9_]*_[0-9a-f]{16}\z/))) and
-             path == "/run/#{slug}/" and String.match?(digest, ~r/\A[0-9a-f]{64}\z/) do
+             path in [expected_local_path, expected_public_url] and
+             String.match?(digest, ~r/\A[0-9a-f]{64}\z/) do
           {:ok, result}
         else
           {:error, :invalid_deployment_response}
