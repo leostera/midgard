@@ -8,7 +8,19 @@ Midgard is a worker toolchain: start from a Mix, rebar3, or Erlang-target Gleam 
 
 ## Install and deploy
 
-Requires **Elixir 1.19+**, **OTP 28**, and Git. Install or update the CLI from GitHub, then create a worker:
+Elixir workers must be built with **OTP 29** and Elixir source revision
+`13299af2b91a6aff7e430f25849f586c02b3231f`, matching the live runtime. Packer
+rejects other Elixir source revisions before creating an artifact. Install that
+compiler first:
+
+```sh
+git clone https://github.com/elixir-lang/elixir.git /tmp/midgard-elixir
+git -C /tmp/midgard-elixir checkout 13299af2b91a6aff7e430f25849f586c02b3231f
+make -C /tmp/midgard-elixir compile install PREFIX=/tmp/midgard-toolchain
+export PATH="/tmp/midgard-toolchain/bin:$PATH"
+```
+
+Then install or update the CLI and deploy a worker:
 
 ```sh
 mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force
