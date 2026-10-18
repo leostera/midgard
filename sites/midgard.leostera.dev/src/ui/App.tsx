@@ -111,7 +111,7 @@ function WorkerInventory({ compact = false }: { compact?: boolean }) {
   return <div className="worker-list">{workers.map((worker) => <WorkerCard key={worker.slug} worker={worker} />)}</div>;
 }
 
-const workerLanguages = ["Elixir", "Erlang", "Gleam", "Elixir", "BEAM"];
+const workerLanguages = ["Elixir", "Gleam", "Erlang"];
 
 function RotatingLanguage() {
   const [index, setIndex] = useState(0);
@@ -122,7 +122,7 @@ function RotatingLanguage() {
     }, 2_400);
     return () => window.clearInterval(timer);
   }, []);
-  return <><span className="sr-only">Elixir, Erlang, Gleam, and BEAM</span><span className="rotating-word" aria-hidden="true" key={workerLanguages[index]}>{workerLanguages[index]}</span></>;
+  return <><span className="sr-only">Elixir, Gleam, and Erlang</span><span className="rotating-word" aria-hidden="true" key={workerLanguages[index]}>{workerLanguages[index]}</span></>;
 }
 
 function Landing() {
@@ -130,7 +130,7 @@ function Landing() {
     <>
       <section className="hero">
         <div className="hero-copy">
-          <h1>Isolated<br /><em><RotatingLanguage /> workers.</em></h1>
+          <h1><RotatingLanguage /> workers,<br /><em>finally serverless.</em></h1>
           <p className="hero-intro">Get from an Elixir project to a live worker without provisioning or maintaining a server.</p>
           <div className="hero-actions">
             <a className="button button-primary" href="#deploy">Deploy a worker</a>
