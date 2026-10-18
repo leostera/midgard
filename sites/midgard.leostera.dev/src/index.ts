@@ -9,7 +9,6 @@ const chunkSize = 256_000;
 // Renew the ten-minute idle period for both newly started and surviving
 // Containers because a DO restart loses its inactivity setting.
 const inactivityMs = 10 * 60 * 1_000;
-const publicGets = new Set(["/", "/workers/new", "/assets/app.css", "/assets/favicon.svg"]);
 const appName = /^[a-z][a-z0-9_]{0,39}$/;
 const workerName = /^[a-z][a-z0-9_]*_[0-9a-f]{16}$/;
 
@@ -24,8 +23,14 @@ function hex(bytes: Uint8Array): string {
 	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+function arrayBuffer(bytes: Uint8Array): ArrayBuffer {
+	const copy = new Uint8Array(bytes.byteLength);
+	copy.set(bytes);
+	return copy.buffer;
+}
+
 async function checksum(bytes: Uint8Array): Promise<string> {
-	return hex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+	return hex(new Uint8Array(await crypto.subtle.digest("SHA-256", arrayBuffer(bytes))));
 }
 
 async function boundedBody(request: Request): Promise<Uint8Array | null> {
@@ -183,7 +188,7 @@ export class NativeRuntime extends DurableObject<Env> {
 
 	private async uploadToHost(app: string, route: string, body: Uint8Array): Promise<Response> {
 		const request = new Request(`${backend}/api/deployments/${app}`, {
-			method: "POST", body,
+			method: "POST", body: arrayBuffer(body),
 			headers: {
 				"host": "127.0.0.1:4000", "content-type": mediaType,
 				"x-midgard-public-route": route,
@@ -304,10 +309,12 @@ export default {
 		const app = url.pathname.startsWith("/api/deployments/") ? url.pathname.slice("/api/deployments/".length) : null;
 		const isUpload = request.method === "POST" && app !== null && appName.test(app) && !url.search;
 		const isReady = request.method === "GET" && url.pathname === "/api/deployments/ready" && !url.search;
-		const isDetail = request.method === "GET" && /^\/workers\/[a-z][a-z0-9_]{0,39}$/.test(url.pathname);
+		const isFrontend = request.method === "GET" &&
+			(url.pathname === "/" || url.pathname === "/workers" || /^\/workers\/[a-z][a-z0-9_]*_[0-9a-f]{16}$/.test(url.pathname));
+		const isAsset = request.method === "GET" && url.pathname.startsWith("/assets/");
 		const isWorkerRead = request.method === "GET" && /^\/api\/workers(?:\/[a-z][a-z0-9_]*_[0-9a-f]{16})?$/.test(url.pathname) && !url.search;
 		const isCall = url.pathname.startsWith("/run/") && /^\/run\/[a-z][a-z0-9_]{0,39}\/.*$/.test(url.pathname) && ["GET", "POST", "PUT", "DELETE", "PATCH"].includes(request.method);
-		if (url.origin !== origin || (!isUpload && !isReady && !isWorkerRead && !isCall && !isDetail && !(request.method === "GET" && publicGets.has(url.pathname)))) {
+		if (url.origin !== origin || (!isUpload && !isReady && !isWorkerRead && !isCall && !isFrontend && !isAsset)) {
 			return text("Not found", 404);
 		}
 		const ip = request.headers.get("cf-connecting-ip");
@@ -317,6 +324,14 @@ export default {
 		if (isUpload) {
 			const build = await env.DEPLOY_RATE.limit({ key: ip });
 			if (!build.success) return text("Too many deployments", 429);
+		}
+		if (isFrontend || isAsset) {
+			const assetRequest = isFrontend ? new Request(new URL("/", request.url), request) : request;
+			const response = await env.ASSETS.fetch(assetRequest);
+			const headers = new Headers(response.headers);
+			headers.set("cache-control", isFrontend ? "no-store" : "public, max-age=31536000, immutable");
+			headers.set("x-content-type-options", "nosniff");
+			return new Response(response.body, { status: response.status, headers });
 		}
 		try {
 			// Older DO instances can stay alive across edge deployments. Use the

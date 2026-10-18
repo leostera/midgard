@@ -1,7 +1,7 @@
 import { expect, mock, test } from "bun:test";
 import { Database } from "bun:sqlite";
 
-const state = { calls: 0, limited: false, buildsLimited: false };
+const state = { calls: 0, assets: [] as string[], limited: false, buildsLimited: false };
 mock.module("cloudflare:workers", () => ({
 	DurableObject: class {
 		ctx: unknown;
@@ -21,6 +21,10 @@ mock.module("cloudflare:workers", () => ({
 }));
 const { default: worker, NativeRuntime } = await import("../src/index.ts");
 const env = {
+	ASSETS: { fetch: async (request: Request) => {
+		state.assets.push(new URL(request.url).pathname);
+		return new Response("<!doctype html><h1>Midgard</h1>", { headers: { "content-type": "text/html" } });
+	} },
 	HTTP_RATE: { limit: async () => ({ success: !state.limited }) },
 	DEPLOY_RATE: { limit: async () => ({ success: !state.buildsLimited }) },
 } as unknown as Env;
@@ -86,15 +90,17 @@ function runtimeHarness() {
 	return { ctx, container, requests, admitted, starts: () => starts, destroys: () => destroys, timeouts: () => timeouts };
 }
 
-test("dashboard, guide and assets pass through the private Elixir service", async () => {
+test("landing, dashboard, worker detail and assets are served by the Worker asset binding", async () => {
 	state.calls = 0;
-	for (const path of ["/", "/workers/new", "/workers/hello_abcd1234", "/assets/app.css", "/assets/favicon.svg"]) {
+	state.assets = [];
+	for (const path of ["/", "/workers", "/workers/hello_abcd1234567890ab", "/assets/app.css", "/assets/favicon.svg"]) {
 		const response = await worker.fetch(visit(path), env);
 		expect(response.status).toBe(200);
-		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(response.headers.get("cache-control")).toBe(path.startsWith("/assets/") ? "public, max-age=31536000, immutable" : "no-store");
 	}
+	expect(state.assets).toEqual(["/", "/", "/", "/assets/app.css", "/assets/favicon.svg"]);
 	expect((await worker.fetch(visit("/api/deployments/ready"), env)).status).toBe(204);
-	expect(state.calls).toBe(6);
+	expect(state.calls).toBe(1);
 });
 
 test("public worker inventory is served by the runtime API", async () => {
@@ -106,7 +112,7 @@ test("public worker inventory is served by the runtime API", async () => {
 
 test("unrelated writes and unknown paths never reach the backend", async () => {
 	state.calls = 0;
-	for (const [path, method] of [["/workers", "POST"], ["/_midgard/operator/execute-probe", "POST"], ["/bad", "GET"]]) {
+	for (const [path, method] of [["/workers", "POST"], ["/workers/new", "GET"], ["/_midgard/operator/execute-probe", "POST"], ["/bad", "GET"]]) {
 		expect((await worker.fetch(visit(path, method), env)).status).toBe(404);
 	}
 	expect(state.calls).toBe(0);

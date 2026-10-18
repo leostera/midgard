@@ -21,10 +21,12 @@ export default defineConfig({
 	worker: {
 		name: "midgard-leostera-dev",
 		compatibilityDate: "2026-09-25",
+		assets: { notFoundHandling: "single-page-application", runWorkerFirst: true },
 		domains: ["midgard.leostera.dev"],
 		entrypoint,
 		observability: { enabled: true, logs: { enabled: true }, traces: { enabled: true, headSamplingRate: 0.1 } },
 		env: {
+			ASSETS: bindings.assets(),
 			HTTP_RATE: bindings.rateLimit({ namespace: "1003", simple: { limit: 120, period: 60 } }),
 			DEPLOY_RATE: bindings.rateLimit({ namespace: "1004", simple: { limit: 2, period: 60 } }),
 		},

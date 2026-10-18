@@ -2,11 +2,14 @@
 	"compilerOptions": {
 		"target": "es2024",
 		"lib": [
-			"es2024"
+			"es2024",
+			"dom",
+			"dom.iterable"
 		],
 		"module": "preserve",
 		"moduleResolution": "bundler",
-		"types": [],
+		"types": ["vite/client"],
+		"jsx": "react-jsx",
 		"strict": true,
 		"noEmit": true,
 		"allowImportingTsExtensions": true,
