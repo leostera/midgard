@@ -97,6 +97,13 @@ test("dashboard, guide and assets pass through the private Elixir service", asyn
 	expect(state.calls).toBe(6);
 });
 
+test("public worker inventory is served by the runtime API", async () => {
+	state.calls = 0;
+	const response = await worker.fetch(visit("/api/workers"), env);
+	expect(response.status).toBe(200);
+	expect(state.calls).toBe(1);
+});
+
 test("unrelated writes and unknown paths never reach the backend", async () => {
 	state.calls = 0;
 	for (const [path, method] of [["/workers", "POST"], ["/_midgard/operator/execute-probe", "POST"], ["/bad", "GET"]]) {
@@ -163,6 +170,18 @@ test("anonymous uploads receive immutable routes and recover exact stored bytes"
 	expect(response.status).toBe(201);
 	const result = await response.json() as { slug: string };
 	expect(result.slug).toMatch(/^hello_[0-9a-f]{16}$/);
+	const inventory = await runtime.fetch(new Request("https://midgard.leostera.dev/api/workers"));
+	const listed = await inventory.json() as { workers: Array<{ slug: string; name: string; url: string; digest: string; size: number }> };
+	expect(listed.workers).toEqual([{
+		slug: result.slug,
+		name: "hello",
+		url: `/run/${result.slug}/`,
+		digest: "a".repeat(64),
+		size: body.byteLength,
+	}]);
+	const detail = await runtime.fetch(new Request(`https://midgard.leostera.dev/api/workers/${result.slug}`));
+	expect(await detail.json()).toEqual(listed.workers[0]);
+	expect((await runtime.fetch(new Request("https://midgard.leostera.dev/api/workers/hello_0000000000000000"))).status).toBe(404);
 	expect(requests[1]?.headers.get("x-midgard-internal-upload")?.startsWith("Bearer ")).toBe(true);
 	expect(requests[1]?.headers.get("authorization")).toBeNull();
 	expect(new Uint8Array(await requests[1]!.arrayBuffer())).toEqual(body);

@@ -252,8 +252,34 @@ export class NativeRuntime extends DurableObject<Env> {
 		});
 	}
 
+	private publicWorker(saved: Saved) {
+		return {
+			slug: saved.slug,
+			name: saved.app,
+			url: `/run/${saved.slug}/`,
+			digest: saved.digest,
+			size: saved.size,
+		};
+	}
+
 	async fetch(request: Request): Promise<Response> {
 		const url = new URL(request.url);
+		if (request.method === "GET" && url.pathname === "/api/workers") {
+			const workers = this.ctx.storage.sql
+				.exec<Saved>("SELECT slug, app, digest, size, checksum FROM shipments WHERE active = 1 ORDER BY app, slug")
+				.toArray()
+				.map((saved) => this.publicWorker(saved));
+			return Response.json({ workers }, { headers: { "cache-control": "no-store" } });
+		}
+		const workerMatch = url.pathname.match(/^\/api\/workers\/([a-z][a-z0-9_]*_[0-9a-f]{16})$/);
+		if (request.method === "GET" && workerMatch) {
+			const saved = this.ctx.storage.sql
+				.exec<Saved>("SELECT slug, app, digest, size, checksum FROM shipments WHERE slug = ? AND active = 1", workerMatch[1])
+				.toArray()[0];
+			return saved
+				? Response.json(this.publicWorker(saved), { headers: { "cache-control": "no-store" } })
+				: text("Worker not found", 404);
+		}
 		if (request.method === "GET" && url.pathname === "/api/deployments/ready") {
 			await this.ensureReady();
 			return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
@@ -279,8 +305,9 @@ export default {
 		const isUpload = request.method === "POST" && app !== null && appName.test(app) && !url.search;
 		const isReady = request.method === "GET" && url.pathname === "/api/deployments/ready" && !url.search;
 		const isDetail = request.method === "GET" && /^\/workers\/[a-z][a-z0-9_]{0,39}$/.test(url.pathname);
+		const isWorkerRead = request.method === "GET" && /^\/api\/workers(?:\/[a-z][a-z0-9_]*_[0-9a-f]{16})?$/.test(url.pathname) && !url.search;
 		const isCall = url.pathname.startsWith("/run/") && /^\/run\/[a-z][a-z0-9_]{0,39}\/.*$/.test(url.pathname) && ["GET", "POST", "PUT", "DELETE", "PATCH"].includes(request.method);
-		if (url.origin !== origin || (!isUpload && !isReady && !isCall && !isDetail && !(request.method === "GET" && publicGets.has(url.pathname)))) {
+		if (url.origin !== origin || (!isUpload && !isReady && !isWorkerRead && !isCall && !isDetail && !(request.method === "GET" && publicGets.has(url.pathname)))) {
 			return text("Not found", 404);
 		}
 		const ip = request.headers.get("cf-connecting-ip");
