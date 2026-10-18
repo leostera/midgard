@@ -14,11 +14,14 @@ internal key to the existing `Midgard.Platform.Router`. The public edge rewrites
 that hostname to the platform's internal `/run/<slug>/` route; `/run` is not a
 public URL. Each exact hostname is attached to the edge Worker through the
 Cloudflare Workers Domains API. Configure the Worker secret
-`CLOUDFLARE_API_TOKEN` with a token that has the Workers `Editor` role and
-`Workers Routes Write` for the `leostera.dev` zone before accepting deployments.
-Cloudflare currently does not support per-Worker role scoping for custom-domain
-changes, so the `Editor` role applies to Workers in the account. The DO persists
-exact shipment bytes in SQLite; a
+`CLOUDFLARE_API_TOKEN` with the permission accepted by Cloudflare's
+[Attach Worker Domain API](https://developers.cloudflare.com/api/resources/workers/subresources/domains/methods/update/):
+`Workers Scripts Write` (shown in the dashboard as **Account → Workers Scripts
+→ Edit**). Cloudflare marks this permission legacy, but its docs say existing
+legacy permissions continue to work and have no deprecation date. The newer
+Workers authorization guide mentions `Workers Routes Write`; if that option is
+not available in the token UI, use the permission the domain API explicitly
+accepts. The DO persists exact shipment bytes in SQLite; a
 fresh Container must independently verify and re-admit every stored shipment
 before the dashboard or call routes become available. Browser source editing
 and compilation remain local-only. Anonymous routes are publicly callable; no
