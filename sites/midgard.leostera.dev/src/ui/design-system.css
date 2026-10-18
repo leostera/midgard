@@ -1,4 +1,4 @@
-/* Shared Midgard UI palette, with language accents scoped to landing routes. */
+/* Midgard's shared Elixir-first UI palette. */
 :root {
   color-scheme: light;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -23,20 +23,6 @@
 }
 
 .site { min-height: 100vh; color: var(--text); }
-.site.theme-erlang {
-  --accent: #00aaec;
-  --accent-ink: #006b91;
-  --accent-foreground: #222539;
-  --accent-soft: #eaf9ff;
-  --accent-border: #b9e9f7;
-}
-.site.theme-gleam {
-  --accent: #ffaff3;
-  --accent-ink: #8a3d7d;
-  --accent-foreground: #222539;
-  --accent-soft: #fff0fc;
-  --accent-border: #f4c4eb;
-}
 
 body { background: #fff; color: var(--text); }
 ::selection { background: var(--accent-soft); color: var(--text); }
@@ -49,40 +35,17 @@ a { color: inherit; text-underline-offset: .2em; }
 .topbar nav a:hover, .footer a:hover, .inventory-title > a:hover { color: var(--accent-ink); }
 .nav-cta { border-color: var(--accent-border); color: var(--accent-ink); }
 .nav-cta:hover { border-color: var(--accent-ink); }
-.language-link { color: var(--accent-ink); }
 
 .hero h1 em, .rotating-word { color: var(--accent-ink); }
-.hero-intro, .principles p, .section-heading > p:last-child,
+.hero-intro, .section-heading > p:last-child,
 .page-heading > p:last-child, .detail-copy { color: var(--muted); }
 .button-primary { background: var(--accent); color: var(--accent-foreground); }
 .button-primary:hover { background: var(--accent-ink); color: #fff; }
 .button-quiet { border-color: var(--line); color: var(--accent-ink); }
 
-.runtime-diagram {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 180px;
-  padding: 25px 0;
-  border-block: 1px solid var(--line);
-}
-.runtime-stage { display: grid; gap: 8px; min-width: 125px; }
-.runtime-stage > span { color: var(--muted); font: 10px var(--mono); letter-spacing: .08em; }
-.runtime-stage strong { color: var(--text); font-size: 16px; font-weight: 600; }
-.runtime-connection { position: relative; width: 70px; margin: 0 22px; border-top: 1px solid var(--accent); }
-.runtime-connection::before, .runtime-connection::after {
-  position: absolute; top: -4px; width: 7px; height: 7px; border: 1px solid var(--accent);
-  border-radius: 50%; background: #fff; content: "";
-}
-.runtime-connection::before { left: 0; }
-.runtime-connection::after { right: 0; background: var(--accent); }
-.runtime-connection > span {
-  position: absolute; left: 50%; top: -21px; padding: 0 5px; transform: translateX(-50%);
-  background: #fff; color: var(--muted); font: 10px var(--mono); white-space: nowrap;
-}
-
-.principles { border-color: var(--line); }
-.principles article h2 { color: var(--text); }
+.hero-value { display: grid; gap: 16px; justify-self: center; }
+.hero-value p { margin: 0; font: 600 clamp(20px, 2.2vw, 27px)/1.2 var(--display); letter-spacing: -.02em; }
+.hero-value p + p { padding-top: 16px; border-top: 1px solid var(--line); }
 .terminal-card { border-color: #393353; background: #222235; }
 .terminal-bar { background: #393353; border-bottom-color: #48465d; }
 .terminal-bar small, .term-dim { color: #c5c2d3; }
@@ -90,12 +53,9 @@ a { color: inherit; text-underline-offset: .2em; }
 .quickstart-steps { padding: 4px 22px 10px; }
 .quickstart-steps > div { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 7px 10px; padding: 16px 0; }
 .quickstart-steps > div + div { border-top: 1px solid #48465d; }
-.quickstart-steps > div > span { grid-row: span 2; color: #b99aff; font: 11px var(--mono); padding-top: 2px; }
+.quickstart-steps > div > span { grid-row: span 2; color: var(--accent); font: 11px var(--mono); padding-top: 2px; }
 .quickstart-steps strong { color: #f0eefb; font-size: 13px; font-weight: 600; }
 .quickstart-steps pre { padding: 0; margin: 0; overflow-x: auto; color: #f0eefb; font: 11px/1.7 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
-.language-guide { max-width: 600px; padding: 20px 0; border-block: 1px solid var(--line); color: var(--muted); }
-.language-guide p { margin: 0 0 12px; }
-.language-guide a { color: var(--accent-ink); font-weight: 600; text-decoration: underline; }
 .inventory-title > a { color: var(--accent-ink); }
 .worker-card { border-color: var(--line); background: #fff; }
 .worker-card:hover { border-color: var(--accent-border); background: var(--accent-soft); }
@@ -115,10 +75,7 @@ a { color: inherit; text-underline-offset: .2em; }
 .empty-state p { color: var(--muted); }
 
 @media (max-width: 760px) {
-  .runtime-diagram { min-height: 160px; }
-  .runtime-stage { min-width: 0; }
-  .runtime-stage strong { max-width: 125px; font-size: 14px; }
-  .runtime-connection { width: 38px; margin-inline: 12px; }
+  .hero-value { justify-self: start; }
   .quickstart-steps { padding-inline: 16px; }
   .quickstart-steps pre { font-size: 10px; }
   .quickstart-steps > div { grid-template-columns: 24px minmax(0, 1fr); }

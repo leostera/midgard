@@ -310,7 +310,7 @@ export default {
 		const isUpload = request.method === "POST" && app !== null && appName.test(app) && !url.search;
 		const isReady = request.method === "GET" && url.pathname === "/api/deployments/ready" && !url.search;
 		const isFrontend = request.method === "GET" &&
-			(url.pathname === "/" || url.pathname === "/erlang" || url.pathname === "/gleam" || url.pathname === "/workers" || /^\/workers\/[a-z][a-z0-9_]*_[0-9a-f]{16}$/.test(url.pathname));
+			(url.pathname === "/" || url.pathname === "/workers" || /^\/workers\/[a-z][a-z0-9_]*_[0-9a-f]{16}$/.test(url.pathname));
 		const isAsset = request.method === "GET" && url.pathname.startsWith("/assets/");
 		const isWorkerRead = request.method === "GET" && /^\/api\/workers(?:\/[a-z][a-z0-9_]*_[0-9a-f]{16})?$/.test(url.pathname) && !url.search;
 		const isCall = url.pathname.startsWith("/run/") && /^\/run\/[a-z][a-z0-9_]{0,39}\/.*$/.test(url.pathname) && ["GET", "POST", "PUT", "DELETE", "PATCH"].includes(request.method);
