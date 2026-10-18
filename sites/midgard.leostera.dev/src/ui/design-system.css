@@ -1,0 +1,85 @@
+/* Shared palette: match the established Midgard dashboard/app. */
+:root {
+  color-scheme: light;
+  --bg: #fff;
+  --panel: #f8f8fb;
+  --line: #e3e4ec;
+  --text: #222539;
+  --muted: #606175;
+  --green: #276e54;
+  --purple: #6845c4;
+  --purple-dark: #5132a5;
+  --surface: #fff;
+  --border: #e3e4ec;
+  --content-width: 1200px;
+  --content-gutter: 48px;
+  --radius: 7px;
+}
+
+body {
+  background: radial-gradient(ellipse at 78% 8%, #f2edfc 0, transparent 34rem), #fff;
+  color: var(--text);
+}
+
+a { color: inherit; }
+.topbar { border-bottom-color: var(--line); }
+.brand-mark { background: var(--purple); color: #fff; }
+.brand-dot { color: var(--purple); }
+.topbar nav { color: var(--muted); }
+.topbar nav a:hover, .footer a:hover, .inventory-title > a:hover { color: var(--purple-dark); }
+.nav-cta { border-color: #d9d9e5; color: var(--text); }
+.nav-cta:hover { border-color: var(--purple); }
+
+.eyebrow, .step { color: var(--purple); }
+.pulse, .art-live, .worker-status i { background: var(--green); box-shadow: 0 0 0 3px #276e541a; }
+.hero h1 em, .rotating-word { color: var(--purple); }
+.hero-intro, .principles p, .section-heading > p:last-child,
+.page-heading > p:last-child, .detail-copy { color: var(--muted); }
+.button-primary { background: var(--purple); color: #fff; }
+.button-primary:hover { background: var(--purple-dark); }
+.button-quiet { border-color: var(--line); color: var(--purple-dark); }
+.hero-note { color: var(--muted); }
+
+.orbit { border-color: #6845c433; }
+.node { border-color: #d9cffa; background: #fff; box-shadow: 0 12px 50px #6845c41a; }
+.node span { color: var(--purple); }
+.node small, .art-caption { color: var(--muted); }
+.node-edge { border-color: #d9d9e5; background: #f8f8fb; }
+.node-edge span { color: var(--purple); }
+.flow-line { background: linear-gradient(90deg, #6845c422, var(--purple), #6845c422); }
+.flow-line i { background: var(--purple); }
+
+.principles { border-color: var(--line); }
+.step { color: var(--purple-dark); }
+.terminal-card { border-color: #393353; background: #222235; }
+.terminal-bar { background: #393353; border-bottom-color: #48465d; }
+.terminal-bar > span { background: #b8b5ce; }
+.terminal-bar > span:first-child { background: #e27967; }
+.terminal-bar > span:nth-child(2) { background: #d9b95d; }
+.terminal-bar > span:nth-child(3) { background: #80b95b; }
+.terminal-bar small, .terminal-footnote { color: #d0cddd; }
+.term-dim { color: #b8b5ce; }
+.term-prompt, .term-success { color: #b99aff; }
+.inventory-title > a { color: var(--purple-dark); }
+
+.worker-card { border-color: var(--line); background: #fff; }
+.worker-card:hover { border-color: #b99aff; background: #faf8ff; }
+.worker-icon { border-color: #e3dafa; color: var(--purple); }
+.worker-route { color: var(--purple-dark); }
+.worker-status { color: var(--green); }
+.worker-arrow { color: var(--muted); }
+.state-message { border-color: var(--line); background: var(--panel); color: var(--muted); }
+.back-link, .empty-state a { color: var(--purple-dark); }
+.back-link:hover { color: var(--purple); }
+.detail-box { border-color: var(--line); background: #fff; }
+.detail-box > span, .detail-meta > span { color: var(--muted); }
+.detail-box > a { color: var(--purple-dark); }
+.detail-meta { border-top-color: var(--line); color: var(--text); }
+.detail-meta code { color: var(--muted); }
+.footer { border-top-color: var(--line); color: var(--text); }
+.footer .muted, .footer a { color: var(--muted); }
+.empty-state p { color: var(--muted); }
+
+@media (max-width: 760px) {
+  .footer { background: transparent; }
+}
