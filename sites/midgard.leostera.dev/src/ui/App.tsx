@@ -71,9 +71,9 @@ function Header() {
         <span>midgard<span className="brand-dot">.</span></span>
       </a>
       <nav aria-label="Main navigation">
-        <a className="workers-link" href="/workers">Workers</a>
+        <a className="workers-link" href="/workers">Public demos</a>
         <a className="github-link" href="https://github.com/leostera/midgard">GitHub</a>
-        <a className="nav-cta" href="/#deploy">Deploy a worker</a>
+        <a className="nav-cta" href="/#deploy">Get started</a>
       </nav>
     </header>
   );
@@ -82,7 +82,7 @@ function Header() {
 function Footer() {
   return (
     <footer className="footer">
-      <span>Midgard <span className="muted">· BEAM, admitted at the edge</span></span>
+      <span>Midgard <span className="muted">· Elixir platform for BEAM apps</span></span>
       <a href="https://github.com/leostera/midgard">Open source on GitHub</a>
     </footer>
   );
@@ -95,17 +95,17 @@ function WorkerCard({ worker }: { worker: PublicWorker }) {
         <strong>{worker.name}</strong>
         <span className="worker-route">{worker.url}</span>
       </span>
-      <span className="worker-status"><i /> Live</span>
+      <span className="worker-status"><i /> Published</span>
     </a>
   );
 }
 
 function WorkerInventory({ compact = false }: { compact?: boolean }) {
   const state = useLoad(getWorkers, "workers");
-  if (state.status === "loading") return <p className="state-message">Loading public workers…</p>;
+  if (state.status === "loading") return <p className="state-message">Loading public demos…</p>;
   if (state.status === "error") return <p className="state-message">The worker inventory is temporarily unavailable.</p>;
   if (state.value.length === 0) {
-    return <p className="state-message">No public workers yet. Deploy one from your terminal to see it here.</p>;
+    return <p className="state-message">No public demos yet. Deploy one with <code>mix midgard.deploy</code> to list it here.</p>;
   }
   const workers = compact ? state.value.slice(0, 3) : state.value;
   return <div className="worker-list">{workers.map((worker) => <WorkerCard key={worker.slug} worker={worker} />)}</div>;
@@ -130,21 +130,21 @@ function Landing() {
     <>
       <section className="hero">
         <div className="hero-copy">
-          <h1><RotatingLanguage /> workers,<br /><em>finally serverless.</em></h1>
-          <p className="hero-intro">Get from an Elixir project to a live worker without provisioning or maintaining a server.</p>
+          <h1><RotatingLanguage /> on Cloudflare,<br /><em>powered by BEAM.</em></h1>
+          <p className="hero-intro">Deploy Elixir, Erlang, and Gleam code as immutable BEAM shipments. Midgard’s Elixir platform runs them with libbeam in a Cloudflare Container.</p>
           <div className="hero-actions">
             <a className="button button-primary" href="#deploy">Deploy a worker</a>
-            <a className="button button-quiet" href="/workers">Browse workers</a>
+            <a className="button button-quiet" href="/workers">Explore public demos</a>
           </div>
         </div>
         <div className="hero-value">
-          <p>Resource-limited sandbox</p>
-          <p>Three Mix steps to a live route</p>
+          <p>Elixir platform + native libbeam</p>
+          <p>One public URL per deployment</p>
         </div>
       </section>
 
       <section className="deploy-section" id="deploy">
-        <div className="section-heading"><h2>Install. Create. Deploy.</h2><p>Three steps from a clean machine to a live worker.</p></div>
+        <div className="section-heading"><h2>From Mix project to public URL</h2><p>Install the CLI, create a starter project, and publish a callable BEAM shipment. This shared demo is public—don’t upload secrets or private code.</p></div>
         <div className="terminal-card">
           <div className="quickstart-steps">
             <div><span>01</span><strong>Install the CLI</strong><pre><code>mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force</code></pre></div>
@@ -155,7 +155,7 @@ function Landing() {
       </section>
 
       <section className="inventory-preview">
-        <div className="inventory-title"><h2>Public workers</h2><a href="/workers">View all workers</a></div>
+        <div className="inventory-title"><h2>Try the public demos</h2><a href="/workers">Browse all demos</a></div>
         <WorkerInventory compact />
       </section>
     </>
@@ -165,7 +165,7 @@ function Landing() {
 function InventoryPage() {
   return (
     <main className="page-main">
-      <div className="page-heading"><h1>Public workers</h1><p>Deployments on the shared demo are public and callable. Private projects and accounts are not available yet.</p></div>
+      <div className="page-heading"><h1>Public demo workers</h1><p>Every deployment here is visible and callable by anyone. The shared demo has no private projects or access controls; don’t upload secrets or private code.</p></div>
       <WorkerInventory />
     </main>
   );
@@ -180,10 +180,10 @@ function WorkerPage({ slug }: { slug: string }) {
       {state.status === "error" && <div className="empty-state"><h1>Worker not found</h1><p>This route may have been removed or the public demo may be restarting.</p><a href="/workers">Browse public workers</a></div>}
       {state.status === "ready" && <div className="worker-detail">
         <h1>{state.value.name}<span className="brand-dot">.</span></h1>
-        <p className="detail-copy">This worker is live in Midgard’s native runtime and callable through its immutable public route.</p>
-        <div className="detail-box"><span>PUBLIC ROUTE</span><a href={state.value.url}>{new URL(state.value.url, window.location.origin).href}</a></div>
-        <a className="button button-primary" href={`${state.value.url}hello`}>Call /hello</a>
-        <div className="detail-meta"><span>Shipment digest</span><code>{state.value.digest.slice(0, 16)}…</code><span>Shipment size</span><code>{state.value.size.toLocaleString()} bytes</code></div>
+        <p className="detail-copy">This BEAM shipment runs through Midgard’s Elixir platform. Anyone with its public URL can call it; each deployment gets its own immutable URL.</p>
+        <div className="detail-box"><span>PUBLIC URL</span><a href={state.value.url}>{new URL(state.value.url, window.location.origin).href}</a></div>
+        <a className="button button-primary" href={state.value.url}>Open worker</a>
+        <div className="detail-meta"><span>Shipment SHA-256</span><code>{state.value.digest.slice(0, 16)}…</code><span>Shipment size</span><code>{state.value.size.toLocaleString()} bytes</code></div>
       </div>}
     </main>
   );
@@ -195,6 +195,6 @@ export function App() {
   let page = <Landing />;
   if (pathname === "/workers") page = <InventoryPage />;
   else if (worker) page = <WorkerPage slug={worker[1]} />;
-  else if (pathname !== "/") page = <main className="page-main"><div className="empty-state"><h1>Page not found</h1><a href="/">Back to Midgard</a></div></main>;
+  else if (pathname !== "/") page = <main className="page-main"><div className="empty-state"><h1>Page not found</h1><a href="/">Return to Midgard</a></div></main>;
   return <div className="site"><Header />{page}<Footer /></div>;
 }
