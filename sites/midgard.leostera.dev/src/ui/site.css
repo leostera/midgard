@@ -167,14 +167,21 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .quickstart-steps { padding: 4px 18px 8px; }
 .quickstart-steps > div {
   display: grid;
-  grid-template-columns: 25px minmax(0, 1fr);
-  gap: 7px 10px;
-  padding: 14px 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 20px 0;
 }
 .quickstart-steps > div + div { border-top: 1px solid #48465d; }
-.quickstart-steps > div > span { grid-row: span 2; padding-top: 2px; font: 10px var(--mono); }
-.quickstart-steps strong { font-size: 12px; font-weight: 600; }
-.quickstart-steps small { grid-column: 2; font-size: 11px; line-height: 1.5; }
+.quickstart-steps h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 4px;
+  font: 650 18px/1.2 var(--display);
+  letter-spacing: -.02em;
+}
+.quickstart-steps h3 span { flex: none; font: 700 24px/.9 var(--display); }
+.quickstart-steps small { font-size: 11px; line-height: 1.5; }
 .quickstart-steps .code-filename { font: 10px var(--mono); }
 .quickstart-steps small a { text-decoration: underline; text-underline-offset: 2px; }
 .quickstart-steps pre {

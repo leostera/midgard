@@ -300,21 +300,18 @@ function Quickstart() {
         <div id="quickstart-panel" className="quickstart-panel" role="tabpanel" aria-labelledby={`quickstart-tab-${activeLanguage}`} tabIndex={0}>
           <div className="quickstart-steps">
             <div>
-              <span>01</span>
-              <strong>{example.setupTitle}</strong>
+              <h3><span>01</span>{example.setupTitle}</h3>
               <HighlightedCode source={example.setup} language="bash" />
               <small>{example.setupNote} {activeLanguage === "elixir" && <a href="https://github.com/leostera/midgard#install-and-deploy" target="_blank" rel="noreferrer">Toolchain instructions</a>}</small>
             </div>
             <div>
-              <span>02</span>
-              <strong>{example.sourceTitle}</strong>
+              <h3><span>02</span>{example.sourceTitle}</h3>
               <small className="code-filename">{example.sourceFile}</small>
               <HighlightedCode source={example.source} language={activeLanguage} />
               <small>{example.sourceNote} <a href={example.sourceUrl} target="_blank" rel="noreferrer">Open full example</a></small>
             </div>
             <div>
-              <span>03</span>
-              <strong>{example.buildTitle}</strong>
+              <h3><span>03</span>{example.buildTitle}</h3>
               <HighlightedCode source={example.build} language="bash" />
               <small>{example.buildNote} Public calls use the worker subdomain; <code>/run/</code> stays internal.</small>
             </div>

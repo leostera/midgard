@@ -49,13 +49,12 @@ a { color: inherit; text-underline-offset: .2em; }
 .terminal-card { border-color: #393353; background: #222235; }
 .terminal-bar { background: #393353; border-bottom-color: #48465d; }
 .terminal-bar small, .term-dim { color: #c5c2d3; }
-.term-prompt, .quickstart-steps > div > span { color: var(--accent); }
+.term-prompt { color: var(--accent); }
 .quickstart-steps { padding: 4px 22px 10px; }
-.quickstart-steps > div { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 7px 10px; padding: 16px 0; }
+.quickstart-steps > div { padding: 20px 0; }
 .quickstart-steps > div + div { border-top: 1px solid #48465d; }
-.quickstart-steps > div > span { grid-row: span 3; color: #c6b5ff; font: 11px var(--mono); padding-top: 2px; }
-.quickstart-steps > div:nth-child(2) > span { grid-row: span 4; }
-.quickstart-steps strong { color: #f0eefb; font-size: 13px; font-weight: 600; }
+.quickstart-steps h3 { color: #f0eefb; }
+.quickstart-steps h3 span { color: #c6b5ff; }
 .quickstart-steps small { color: #c5c2d3; }
 .quickstart-steps small a { color: #c6b5ff; }
 .quickstart-steps pre { padding: 0; margin: 0; overflow-x: auto; color: #f0eefb; font: 11px/1.7 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -93,5 +92,6 @@ a { color: inherit; text-underline-offset: .2em; }
   .quickstart-tabs { padding-inline: 16px; }
   .quickstart-steps { padding-inline: 16px; }
   .quickstart-steps pre { font-size: 10px; }
-  .quickstart-steps > div { grid-template-columns: 24px minmax(0, 1fr); }
+  .quickstart-steps h3 { font-size: 17px; }
+  .quickstart-steps h3 span { font-size: 22px; }
 }
