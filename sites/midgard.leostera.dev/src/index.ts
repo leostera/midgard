@@ -124,7 +124,7 @@ export class NativeRuntime extends DurableObject<Env> {
 		// require a fresh Container and exact shipment re-admission.
 		if (container.running) {
 			if (await this.matchesRunningHost(saved)) {
-				for (const shipment of saved) await this.ensureWorkerDomain(shipment);
+				await this.reconcileWorkerDomains(saved);
 				console.log(JSON.stringify({ event: "restore_reused", count: saved.length }));
 				return;
 			}
@@ -151,9 +151,9 @@ export class NativeRuntime extends DurableObject<Env> {
 			if (admitted.digest !== shipment.digest || admitted.slug !== shipment.slug) {
 				throw new Error(`Stored shipment was not re-admitted: ${shipment.slug}`);
 			}
-			await this.ensureWorkerDomain(shipment);
 			console.log(JSON.stringify({ event: "restore_admitted", slug: shipment.slug }));
 		}
+		await this.reconcileWorkerDomains(saved);
 	}
 
 	private async matchesRunningHost(saved: Saved[]): Promise<boolean> {
@@ -245,10 +245,31 @@ export class NativeRuntime extends DurableObject<Env> {
 		}
 	}
 
-	private async ensureWorkerDomain(shipment: Saved): Promise<void> {
-		if (shipment.domain_attached === 1) return;
-		await this.attachWorkerDomain(workerHostname(shipment.slug));
-		this.ctx.storage.sql.exec("UPDATE shipments SET domain_attached = 1 WHERE slug = ?", shipment.slug);
+	private async reconcileWorkerDomains(shipments: Saved[]): Promise<void> {
+		if (shipments.length === 0) return;
+		const query = new URLSearchParams({
+			zone_name: "leostera.dev",
+			service: this.env.CLOUDFLARE_WORKER_NAME,
+		});
+		const response = await fetch(
+			`https://api.cloudflare.com/client/v4/accounts/${this.env.CLOUDFLARE_ACCOUNT_ID}/workers/domains?${query}`,
+			{ headers: { authorization: `Bearer ${this.env.CF_DNS_API_TOKEN}` } },
+		);
+		const result = await response.json() as {
+			success?: boolean;
+			result?: Array<{ hostname?: string; service?: string; enabled?: boolean }>;
+		};
+		if (!response.ok || result.success !== true || !Array.isArray(result.result)) {
+			throw new Error(`Cloudflare could not list worker domains (HTTP ${response.status})`);
+		}
+		const attached = new Set(result.result
+			.filter((domain) => domain.service === this.env.CLOUDFLARE_WORKER_NAME && domain.enabled === true)
+			.map((domain) => domain.hostname));
+		for (const shipment of shipments) {
+			const hostname = workerHostname(shipment.slug);
+			if (!attached.has(hostname)) await this.attachWorkerDomain(hostname);
+			this.ctx.storage.sql.exec("UPDATE shipments SET domain_attached = 1 WHERE slug = ?", shipment.slug);
+		}
 	}
 
 	private async deploy(request: Request, app: string): Promise<Response> {
@@ -329,11 +350,13 @@ export class NativeRuntime extends DurableObject<Env> {
 		const url = new URL(request.url);
 		if (request.method === "GET" && url.pathname === "/api/workers") {
 			await this.ensureReady();
-			const workers = this.ctx.storage.sql
+			const saved = this.ctx.storage.sql
 				.exec<Saved>("SELECT slug, app, digest, size, checksum FROM shipments WHERE active = 1 ORDER BY app, slug")
-				.toArray()
-				.map((saved) => this.publicWorker(saved));
-			return Response.json({ workers }, { headers: { "cache-control": "no-store" } });
+				.toArray();
+			await this.reconcileWorkerDomains(saved);
+			return Response.json({ workers: saved.map((shipment) => this.publicWorker(shipment)) }, {
+				headers: { "cache-control": "no-store" },
+			});
 		}
 		const workerMatch = url.pathname.match(/^\/api\/workers\/([a-z][a-z0-9_]*_[0-9a-f]{16})$/);
 		if (request.method === "GET" && workerMatch) {
@@ -341,12 +364,16 @@ export class NativeRuntime extends DurableObject<Env> {
 			const saved = this.ctx.storage.sql
 				.exec<Saved>("SELECT slug, app, digest, size, checksum FROM shipments WHERE slug = ? AND active = 1", workerMatch[1])
 				.toArray()[0];
-			return saved
-				? Response.json(this.publicWorker(saved), { headers: { "cache-control": "no-store" } })
-				: text("Worker not found", 404);
+			if (!saved) return text("Worker not found", 404);
+			await this.reconcileWorkerDomains([saved]);
+			return Response.json(this.publicWorker(saved), { headers: { "cache-control": "no-store" } });
 		}
 		if (request.method === "GET" && url.pathname === "/api/deployments/ready") {
 			await this.ensureReady();
+			const saved = this.ctx.storage.sql
+				.exec<Saved>("SELECT slug, app, digest, size, checksum FROM shipments WHERE active = 1")
+				.toArray();
+			await this.reconcileWorkerDomains(saved);
 			return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
 		}
 		if (request.method === "POST" && url.pathname.startsWith("/api/deployments/")) {

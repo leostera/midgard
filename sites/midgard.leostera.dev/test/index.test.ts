@@ -3,10 +3,18 @@ import { Database } from "bun:sqlite";
 
 const state = { calls: 0, assets: [] as string[], upstream: [] as string[], limited: false, buildsLimited: false };
 const domainRequests: Array<{ url: string; body: Record<string, unknown> }> = [];
+const attachedDomains = new Set<string>();
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 	const url = input instanceof Request ? input.url : input instanceof URL ? input.href : input;
+	if ((init?.method ?? "GET") === "GET") {
+		return Response.json({
+			success: true,
+			result: [...attachedDomains].map((hostname) => ({ hostname, service: "midgard-leostera-dev", enabled: true })),
+		});
+	}
 	const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
 	domainRequests.push({ url, body });
+	attachedDomains.add(String(body.hostname));
 	return Response.json({
 		success: true,
 		result: { hostname: body.hostname, service: "midgard-leostera-dev", enabled: true },
@@ -141,14 +149,15 @@ test("public worker inventory is served by the runtime API", async () => {
 	expect(state.calls).toBe(1);
 });
 
-test("inventory reads restore shipments and repair their Worker domains", async () => {
+test("inventory reads restore shipments and repair missing Worker domains", async () => {
 	domainRequests.length = 0;
+	attachedDomains.clear();
 	const { ctx, sql, starts } = runtimeHarness();
 	const runtime = new NativeRuntime(ctx, env);
 	const bytes = new Uint8Array([1, 2, 3]);
 	const checksum = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (byte) => byte.toString(16).padStart(2, "0")).join("");
 	const slug = "hello_0123456789abcdef";
-	sql.exec("INSERT INTO shipments (slug, app, digest, size, checksum, active, domain_attached) VALUES (?, ?, ?, ?, ?, 1, 0)", slug, "hello", "a".repeat(64), bytes.byteLength, checksum);
+	sql.exec("INSERT INTO shipments (slug, app, digest, size, checksum, active, domain_attached) VALUES (?, ?, ?, ?, ?, 1, 1)", slug, "hello", "a".repeat(64), bytes.byteLength, checksum);
 	sql.exec("INSERT INTO chunks (slug, part, data) VALUES (?, 0, ?)", slug, bytes.buffer);
 
 	const response = await runtime.fetch(new Request("https://midgard.leostera.dev/api/workers"));
@@ -216,6 +225,7 @@ test("a DO restart reuses only the exact admitted digest set in a surviving Cont
 
 test("anonymous uploads receive immutable routes and recover exact stored bytes", async () => {
 	domainRequests.length = 0;
+	attachedDomains.clear();
 	const { ctx, container, requests, starts, destroys } = runtimeHarness();
 	const runtime = new NativeRuntime(ctx, env);
 	expect((await runtime.fetch(new Request("https://midgard.leostera.dev/api/deployments/ready"))).status).toBe(204);
