@@ -35,7 +35,7 @@ defmodule Packer.GleamTest do
         assert Enum.map(manifest["modules"], & &1["name"]) == ["amber_worker", "midgard"]
 
         assert manifest["dependencies"] == [
-                 %{"app" => "midgard", "version" => "0.1.0", "modules" => ["midgard"]}
+                 %{"app" => "midgard_gleam", "version" => "0.2.0", "modules" => ["midgard"]}
                ]
 
         assert {:ok, %{"execution" => "not_verified"}} = Packer.Profile.report(output)
@@ -74,6 +74,7 @@ defmodule Packer.GleamTest do
 
     project = Path.join(workspace, "examples/gleam_worker")
     library = Path.join(workspace, "packages/gleam")
+
     if System.find_executable("gleam") do
       File.mkdir_p!(Path.dirname(project))
       File.mkdir_p!(Path.dirname(library))

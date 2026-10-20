@@ -27,11 +27,7 @@ defmodule Mix.Tasks.Midgard.New do
         created =
           case options[:midgard_root] do
             nil ->
-              Midgard.CLI.Generator.generate_from_git(
-                name,
-                destination,
-                Midgard.CLI.Generator.archive_revision()
-              )
+              Midgard.CLI.Generator.generate_from_archive(name, destination)
 
             root ->
               Midgard.CLI.Generator.generate(name, destination, root)

@@ -3,7 +3,7 @@
 This example handles `GET /hello/:name` and responds `Hello from <name>`. It does **not** serve `/` or `/hello`. Dependencies use Git revision 55c3c12c592909a05d67b2a7bdb09c03606e261e of https://github.com/leostera/midgard.git. Install the current CLI archive before deploying:
 
 ```sh
-mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force
+mix archive.install hex midgard_cli --force
 cd examples/hola_mundo
 mix deps.get
 mix test

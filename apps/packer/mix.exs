@@ -7,7 +7,7 @@ defmodule Packer.MixProject do
 
     [
       app: :packer,
-      version: "0.1.0",
+      version: "0.2.0",
       elixir: "~> 1.19",
       description: "Versioned BEAM artifact assembler and static verifier",
       package: [

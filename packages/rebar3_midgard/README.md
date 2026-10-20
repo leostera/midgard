@@ -1,18 +1,14 @@
 # rebar3_midgard
 
-A Rebar3 provider plugin for Midgard. It adds these namespaced tasks:
+Build and ship an Erlang worker from the Rebar3 workflow you already use. The plugin adds `pack`, `inspect`, and `deploy` under `rebar3 midgard`, while keeping route handling and application behavior in your Erlang project.
 
-```sh
-rebar3 midgard pack
-rebar3 midgard inspect
-rebar3 midgard deploy
-```
+## Project setup
 
-Configure the worker's exported entrypoint in `rebar.config`:
+Declare the Erlang SDK and project plugin in `rebar.config`:
 
 ```erlang
-{deps, [{midgard, "0.1.0"}]}.
-{project_plugins, [{rebar3_midgard, "0.1.0"}]}.
+{deps, [{midgard, {pkg, midgard_erlang, "0.2.0"}}]}.
+{project_plugins, [{rebar3_midgard, "0.2.0"}]}.
 {midgard, [
     {entry, my_worker},
     {function, handle},
@@ -20,22 +16,30 @@ Configure the worker's exported entrypoint in `rebar.config`:
 ]}.
 ```
 
-`pack` depends on Rebar3's normal `compile` provider, then calls the shared Packer Mix archive with `--skip-compile` so compilation is not repeated. `deploy` runs `pack` first and delegates upload to the Midgard CLI archive. This keeps artifact validation and deployment behavior shared with Elixir and Gleam projects.
+When these Hex releases are available, Rebar3 will fetch the plugin and SDK from the project configuration; no Midgard repository checkout is needed.
 
-## Tool requirements
-
-The plugin itself is Erlang/Rebar3. The current shared Packer and deploy tasks are distributed as Mix archives, so the host also needs Elixir/Mix and both archives installed:
+## Commands
 
 ```sh
-mix archive.install github leostera/midgard --app packer --sparse apps/packer --force
-mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force
+rebar3 eunit
+rebar3 midgard pack
+rebar3 midgard inspect
+rebar3 midgard deploy
 ```
 
-After the archives are published to Hex, the clone-free installs will be:
+- `pack` runs Rebar3's normal compile provider, then creates a `.midgard` artifact from the application and its compiled dependencies.
+- `inspect` checks the artifact structure and reports static compatibility information. It does not execute the worker.
+- `deploy` packages and uploads the artifact, then prints its worker URL.
+
+## Requirements
+
+The plugin delegates artifact assembly and upload to Midgard's shared Mix archives, so the host also needs Elixir/Mix and the Packer and CLI archives. Install those once:
 
 ```sh
 mix archive.install hex midgard_packer --force
 mix archive.install hex midgard_cli --force
 ```
 
-Those Hex releases are not published yet. The repository example resolves these pinned versions from local `_checkouts` symlinks. Once `midgard` and `rebar3_midgard` are published to Hex, standalone projects can use the same declarations and Rebar3 will fetch them automatically; users will not need to clone Midgard. These packages are not published yet.
+In repository development and tests, local `_checkouts` symlinks may provide the plugin and SDK. Published projects use the Hex dependencies declared in `rebar.config`.
+
+See the [Erlang example](../../examples/erlang_worker/README.md) and [project guide](../../docs/erlang-projects.md) for a complete worker.

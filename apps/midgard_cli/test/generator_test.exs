@@ -29,7 +29,7 @@ defmodule Midgard.CLI.GeneratorTest do
     end
   end
 
-  test "archive generator pins both build dependencies to one Git revision" do
+  test "Git archive generator pins runtime and build dependencies to one revision" do
     revision = String.duplicate("a", 40)
 
     destination =
@@ -47,6 +47,23 @@ defmodule Midgard.CLI.GeneratorTest do
 
       assert {:error, _} =
                Midgard.CLI.Generator.generate_from_git("bad", "/tmp/unused", "not-a-sha")
+    after
+      File.rm_rf!(destination)
+    end
+  end
+
+  test "Hex archive generator emits versioned package dependencies" do
+    destination =
+      Path.join(System.tmp_dir!(), "midgard-hex-new-#{System.unique_integer([:positive])}")
+
+    try do
+      assert {:ok, ^destination} =
+               Midgard.CLI.Generator.generate_from_hex("hex_worker", destination)
+
+      mix = File.read!(Path.join(destination, "mix.exs"))
+      assert mix =~ ~s({:midgard, "~> 0.2"})
+      assert mix =~ ~s(hex: "midgard_packer", version: "~> 0.2")
+      refute mix =~ ":midgard_cli"
     after
       File.rm_rf!(destination)
     end

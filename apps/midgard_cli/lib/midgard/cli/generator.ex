@@ -1,5 +1,5 @@
 defmodule Midgard.CLI.Generator do
-  @moduledoc "Scaffolds trusted-local worker projects with pinned Git or checkout-local dependencies."
+  @moduledoc "Scaffolds trusted-local worker projects using Hex, pinned Git, or checkout-local dependencies."
 
   @default_root Path.expand("../../../../..", __DIR__)
   @repository "https://github.com/leostera/midgard.git"
@@ -14,6 +14,31 @@ defmodule Midgard.CLI.Generator do
 
   def default_root, do: @default_root
   def archive_revision, do: @archive_revision
+
+  def generate_from_archive(name, destination) do
+    case @archive_revision do
+      <<_::binary-size(40)>> = revision -> generate_from_git(name, destination, revision)
+      _ -> generate_from_hex(name, destination)
+    end
+  end
+
+  def generate_from_hex(name, destination)
+      when is_binary(name) and is_binary(destination) do
+    destination = Path.expand(destination)
+
+    with :ok <- validate_name(name),
+         :ok <- validate_destination(destination) do
+      write_project(
+        name,
+        destination,
+        Macro.camelize(name),
+        hex_dependencies(),
+        "Hex packages `midgard` and `midgard_packer`"
+      )
+    end
+  rescue
+    error -> {:error, "could not create project: #{Exception.message(error)}"}
+  end
 
   def generate(name, destination, root)
       when is_binary(name) and is_binary(destination) and is_binary(root) do
@@ -80,8 +105,14 @@ defmodule Midgard.CLI.Generator do
   defp local_dependencies(root) do
     """
     {:midgard, path: #{inspect(Path.join(root, "apps/midgard"))}},
-    {:packer, path: #{inspect(Path.join(root, "apps/packer"))}, only: [:dev, :test], runtime: false},
-    {:midgard_cli, path: #{inspect(Path.join(root, "apps/midgard_cli"))}, only: [:dev, :test], runtime: false}
+    {:packer, path: #{inspect(Path.join(root, "apps/packer"))}, only: [:dev, :test], runtime: false}
+    """
+  end
+
+  defp hex_dependencies do
+    """
+    {:midgard, "~> 0.2"},
+    {:packer, hex: "midgard_packer", version: "~> 0.2", only: [:dev, :test], runtime: false}
     """
   end
 
@@ -107,7 +138,7 @@ defmodule Midgard.CLI.Generator do
   end
 
   defp validate_checkout(root) do
-    if Enum.all?(~w(midgard packer midgard_cli), fn app ->
+    if Enum.all?(~w(midgard packer), fn app ->
          File.regular?(Path.join([root, "apps", app, "mix.exs"]))
        end),
        do: :ok,

@@ -5,8 +5,8 @@ A standalone rebar3 application (`erlang_worker`) uses the Midgard Erlang framew
 The `rebar3_midgard` plugin adds `rebar3 midgard pack` and `rebar3 midgard deploy`. Its current shared Packer/deploy backend is distributed as Mix archives, so install those once from the Midgard checkout:
 
 ```sh
-mix archive.install github leostera/midgard --app packer --sparse apps/packer --force
-mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force
+mix archive.install hex midgard_packer --force
+mix archive.install hex midgard_cli --force
 ```
 
 Requires rebar3. For a temporary installation, run `MIX_HOME=/tmp/midgard-rebar mix local.rebar --force` and use the installed executable under `/tmp/midgard-rebar/elixir/<elixir-otp>/rebar3`.

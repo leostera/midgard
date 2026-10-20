@@ -173,7 +173,7 @@ const quickstartExamples: Record<QuickstartLanguage, QuickstartExample> = {
   elixir: {
     label: "Elixir",
     setupTitle: "Install and scaffold",
-    setup: `mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force
+    setup: `mix archive.install hex midgard_cli --force
 mix midgard.new hello_worker
 cd hello_worker
 mix deps.get`,
@@ -194,7 +194,7 @@ mix midgard.deploy`,
     setupTitle: "Get the toolchain",
     setup: `git clone https://github.com/leostera/midgard.git
 cd midgard
-mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force`,
+mix archive.install hex midgard_cli --force`,
     setupNote: "Requires Gleam and OTP 29. This uses the complete working example in examples/gleam_worker.",
     sourceTitle: "Handle a request",
     source: `import midgard

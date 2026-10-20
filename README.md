@@ -23,7 +23,7 @@ export PATH="/tmp/midgard-toolchain/bin:$PATH"
 Then install or update the CLI and deploy a worker:
 
 ```sh
-mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force
+mix archive.install hex midgard_cli --force
 mix midgard.new hello_world
 cd hello_world
 mix deps.get
@@ -37,7 +37,7 @@ No token or account is needed. Deployment builds on your machine and prints a ne
 curl https://hello-world-0123456789abcdef.midgard.leostera.dev/hello
 ```
 
-Already have a worker project? Reinstall the archive with `--force`, then run `mix midgard.deploy` inside that project. Its original route remains unchanged; a new deploy receives a new route. Archive installation executes code from GitHub; review and trust the source before installing it. The generated project pins its SDK and Packer dependencies to the same Git commit as the installed CLI.
+Already have a worker project? Reinstall the archive with `--force`, then run `mix midgard.deploy` inside that project. Its original route remains unchanged; a new deploy receives a new route. The generated project uses the published Midgard SDK and Packer packages from Hex.
 
 ## Write an Elixir worker
 
@@ -67,10 +67,10 @@ mix packer.inspect hello_worker.midgard
 
 You'll get `hello_worker.midgard/`, with `manifest.json` and the worker's exact-name BEAM files under `modules/`. Tests exercise the request handler on ordinary OTP; inspection checks the artifact and reports static compatibility information. See the [Elixir worker API](docs/worker-request-api.md) for the request fields and response contract.
 
-Install the CLI from Git with one Mix command:
+Install the CLI from Hex with one Mix command:
 
 ```sh
-mix archive.install github leostera/midgard --sparse apps/midgard_cli --app midgard_cli
+mix archive.install hex midgard_cli --force
 mix midgard.new my_worker
 cd my_worker && mix deps.get && mix test
 mix midgard.deploy
@@ -79,7 +79,7 @@ curl https://my-worker-0123456789abcdef.midgard.leostera.dev/hello
 ```
 
 The archive supplies the Mix tasks; the new project fetches its SDK and Packer
-from the **same pinned Git commit**. Before building an Elixir worker, compile
+from Hex. Before building an Elixir worker, compile
 and select the exact runtime Elixir source revision above:
 
 ```sh
@@ -89,10 +89,9 @@ make -C /tmp/midgard-elixir compile install PREFIX=/tmp/midgard-toolchain
 export PATH="/tmp/midgard-toolchain/bin:$PATH"
 ```
 
-Archive installation runs source code from
-the repository; review and trust it before installing. To develop against a
-local checkout, pass `--midgard-root /path/to/midgard` to `mix midgard.new`
-instead. The default deploy target is `https://midgard.leostera.dev`; no token
+Archive installation runs the published Mix task code; review and trust the
+package before installing. To develop against a local checkout, pass
+`--midgard-root /path/to/midgard` to `mix midgard.new` instead. The default deploy target is `https://midgard.leostera.dev`; no token
 or account is required. Each deploy gets a **new, immutable public route**, printed
 by the CLI and listed on the dashboard. The shared demo is limited to 32 live
 shipments and 24 MB per upload; there is no authenticated ownership or overwrite.

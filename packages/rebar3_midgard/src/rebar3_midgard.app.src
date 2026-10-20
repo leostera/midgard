@@ -1,6 +1,6 @@
 {application, rebar3_midgard,
  [{description, "Midgard providers for Rebar3"},
-  {vsn, "0.1.0"},
+  {vsn, "0.2.0"},
   {licenses, ["MIT"]},
   {links, [{"GitHub", "https://github.com/leostera/midgard"}]},
   {modules, [rebar3_midgard, rebar3_midgard_prv_pack, rebar3_midgard_prv_inspect, rebar3_midgard_prv_deploy]},

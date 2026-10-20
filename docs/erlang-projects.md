@@ -11,8 +11,8 @@ Put Erlang sources in `src/**/*.erl` and Elixir sources in `lib/**/*.ex`. Run `m
 Install rebar3 and the Packer/Midgard CLI Mix archives, then from the Midgard checkout:
 
 ```sh
-mix archive.install github leostera/midgard --app packer --sparse apps/packer --force
-mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force
+mix archive.install hex midgard_packer --force
+mix archive.install hex midgard_cli --force
 (cd examples/erlang_worker && rebar3 midgard pack)
 ```
 

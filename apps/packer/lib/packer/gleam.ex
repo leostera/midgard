@@ -15,12 +15,12 @@ defmodule Packer.Gleam do
          {:ok, executable} <- executable(opts[:gleam_bin]),
          {:ok, project} <- project_info(root, executable),
          {:ok, lock} <- File.read(Path.join(root, "manifest.toml")),
-         :ok <- reject_native_sources(root),
+         :ok <- reject_native_sources([root | project.local_dependencies]),
          {:ok, version} <- gleam_version(executable),
          :ok <- export(root, executable),
          :ok <- lock_unchanged(root, lock),
-         :ok <- reject_native_sources(root),
-         {:ok, apps} <- shipment(root, project) do
+         :ok <- reject_native_sources([root | project.local_dependencies]),
+         {:ok, apps} <- shipment(root, project.name) do
       modules =
         for app <- apps,
             {name, bytes} <- app.beams,
@@ -28,12 +28,12 @@ defmodule Packer.Gleam do
 
       dependencies =
         for app <- apps,
-            app.app != project,
+            app.app != project.name,
             do: %{app: app.app, version: app.version, modules: Enum.map(app.beams, &elem(&1, 0))}
 
-      output = opts[:output] || Path.join(root, "#{project}.midgard")
+      output = opts[:output] || Path.join(root, "#{project.name}.midgard")
 
-      Packer.Artifact.build(output, project, opts[:entry], modules, dependencies,
+      Packer.Artifact.build(output, project.name, opts[:entry], modules, dependencies,
         function: opts[:function],
         protocol: opts[:protocol],
         gleam_version: version
@@ -73,10 +73,17 @@ defmodule Packer.Gleam do
     with true <- File.regular?(Path.join(root, "gleam.toml")),
          true <- File.regular?(Path.join(root, "manifest.toml")),
          {:ok, output} <- run(executable, ["export", "package-information"], root),
-         {:ok, %{"gleam.toml" => %{"name" => name, "target" => "erlang"}}} <-
-           Packer.JSON.decode(output),
-         true <- is_binary(name) and String.match?(name, @app_pattern) do
-      {:ok, name}
+         {:ok,
+          %{
+            "gleam.toml" => %{
+              "name" => name,
+              "target" => "erlang",
+              "dependencies" => dependencies
+            }
+          }} <- Packer.JSON.decode(output),
+         true <- is_binary(name) and String.match?(name, @app_pattern),
+         {:ok, local_dependencies} <- local_dependency_paths(root, dependencies) do
+      {:ok, %{name: name, local_dependencies: local_dependencies}}
     else
       {:error, reason} ->
         {:error, "invalid Gleam project: #{reason}"}
@@ -126,9 +133,24 @@ defmodule Packer.Gleam do
     error -> {:error, "could not run gleam: #{Exception.message(error)}"}
   end
 
-  defp reject_native_sources(root) do
-    native_dirs = Path.wildcard(Path.join(root, "**/{c_src,native,priv}"))
-    native_files = Path.wildcard(Path.join(root, "**/*.{so,dylib,dll,a}"))
+  defp local_dependency_paths(root, dependencies) when is_map(dependencies) do
+    Enum.reduce_while(dependencies, {:ok, []}, fn
+      {_name, %{"path" => path}}, {:ok, paths} when is_binary(path) ->
+        {:cont, {:ok, [Path.expand(path, root) | paths]}}
+
+      {_name, _configuration}, result ->
+        {:cont, result}
+    end)
+  end
+
+  defp local_dependency_paths(_root, _dependencies), do: {:error, "invalid Gleam dependencies"}
+
+  defp reject_native_sources(roots) do
+    native_dirs =
+      Enum.flat_map(roots, &Path.wildcard(Path.join(&1, "**/{c_src,native,priv}")))
+
+    native_files =
+      Enum.flat_map(roots, &Path.wildcard(Path.join(&1, "**/*.{so,dylib,dll,a}")))
 
     if native_dirs != [] or native_files != [] do
       {:error, "native code or unpackaged priv resources in Gleam project or dependency"}

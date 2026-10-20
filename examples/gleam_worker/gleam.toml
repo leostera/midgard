@@ -2,4 +2,4 @@ name = "amber_worker"
 version = "0.1.0"
 
 [dependencies]
-midgard = { path = "../../packages/gleam" }
+midgard_gleam = { path = "../../packages/gleam" }

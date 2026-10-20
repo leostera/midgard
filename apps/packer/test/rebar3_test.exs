@@ -35,7 +35,7 @@ defmodule Packer.Rebar3Test do
                    %{
                      "app" => "midgard",
                      "modules" => ["midgard"],
-                     "version" => "0.1.0"
+                     "version" => "0.2.0"
                    }
                  ]
 
