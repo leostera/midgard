@@ -130,7 +130,8 @@ function Landing() {
     <>
       <section className="hero">
         <div className="hero-copy">
-          <h1><RotatingLanguage /> on Cloudflare,<br /><em>powered by BEAM.</em></h1>
+          <h1>Serverless <RotatingLanguage /></h1>
+          <p className="hero-platform">running on Cloudflare</p>
           <p className="hero-intro">Deploy Elixir, Erlang, and Gleam code as immutable BEAM shipments. Midgard’s Elixir platform runs them with libbeam in a Cloudflare Container.</p>
           <div className="hero-actions">
             <a className="button button-primary" href="#deploy">Deploy a worker</a>

@@ -68,6 +68,14 @@ button, a { -webkit-tap-highlight-color: transparent; }
   text-wrap: balance;
 }
 .hero h1 em { font-style: normal; font-weight: 500; }
+.hero-platform {
+  margin: -12px 0 22px;
+  color: var(--muted);
+  font-size: clamp(20px, 2.6vw, 28px);
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
 .rotating-word { display: inline-block; animation: word-in .3s ease-out; }
 @keyframes word-in {
   from { opacity: .3; transform: translateY(.08em); }
