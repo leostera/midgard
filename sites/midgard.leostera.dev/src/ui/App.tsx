@@ -109,7 +109,7 @@ function Footer() {
   return (
     <footer className="footer">
       <span>Midgard</span>
-      <a href="https://github.com/leostera/midgard">Open source on GitHub</a>
+      <a href="https://github.com/leostera/midgard/blob/main/LICENSE">MIT-licensed · open source on GitHub</a>
     </footer>
   );
 }
@@ -220,11 +220,9 @@ mix midgard.deploy --artifact examples/gleam_worker/amber_worker.midgard`,
   erlang: {
     label: "Erlang",
     setupTitle: "Get the toolchain",
-    setup: `git clone https://github.com/leostera/midgard.git
-cd midgard
-mix archive.install github leostera/midgard --app packer --sparse apps/packer --force
-mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force`,
-    setupNote: "Requires rebar3 and OTP 29. This uses the repository's local rebar3_midgard plugin.",
+    setup: `mix archive.install hex midgard_packer --force
+mix archive.install hex midgard_cli --force`,
+    setupNote: "Requires Elixir/Mix, Rebar3, and OTP 29. Rebar3 installs the pinned SDK and plugin from rebar.config.",
     sourceTitle: "Handle a request",
     source: `-include_lib("midgard/include/midgard.hrl").
 
