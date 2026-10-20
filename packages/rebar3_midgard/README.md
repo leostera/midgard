@@ -11,7 +11,8 @@ rebar3 midgard deploy
 Configure the worker's exported entrypoint in `rebar.config`:
 
 ```erlang
-{plugins, [rebar3_midgard]}.
+{deps, [{midgard, "0.1.0"}]}.
+{project_plugins, [{rebar3_midgard, "0.1.0"}]}.
 {midgard, [
     {entry, my_worker},
     {function, handle},
@@ -30,4 +31,4 @@ mix archive.install github leostera/midgard --app packer --sparse apps/packer --
 mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force
 ```
 
-When developing inside this repository, `_checkouts/rebar3_midgard` points to this package. Published projects should add `rebar3_midgard` as a version-pinned Rebar3 plugin.
+The repository example resolves these pinned versions from local `_checkouts` symlinks. Once `midgard` and `rebar3_midgard` are published to Hex, standalone projects can use the same declarations and Rebar3 will fetch them automatically; users will not need to clone Midgard. These packages are not published yet.
