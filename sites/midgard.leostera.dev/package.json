@@ -13,9 +13,9 @@
 		"@cloudflare/vite-plugin": "beta",
 		"@types/react": "19.2.18",
 		"@types/react-dom": "19.2.7",
-		"cf": "^1.0.0-beta.6",
+		"cf": "^1.0.0-beta.18",
 		"typescript": "^7.0.2",
-		"vite": "^8.3.0"
+		"vite": "^8.3.4"
 	},
 	"dependencies": {
 		"react": "19.2.8",
