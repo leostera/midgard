@@ -328,6 +328,7 @@ export class NativeRuntime extends DurableObject<Env> {
 	async fetch(request: Request): Promise<Response> {
 		const url = new URL(request.url);
 		if (request.method === "GET" && url.pathname === "/api/workers") {
+			await this.ensureReady();
 			const workers = this.ctx.storage.sql
 				.exec<Saved>("SELECT slug, app, digest, size, checksum FROM shipments WHERE active = 1 ORDER BY app, slug")
 				.toArray()
@@ -336,6 +337,7 @@ export class NativeRuntime extends DurableObject<Env> {
 		}
 		const workerMatch = url.pathname.match(/^\/api\/workers\/([a-z][a-z0-9_]*_[0-9a-f]{16})$/);
 		if (request.method === "GET" && workerMatch) {
+			await this.ensureReady();
 			const saved = this.ctx.storage.sql
 				.exec<Saved>("SELECT slug, app, digest, size, checksum FROM shipments WHERE slug = ? AND active = 1", workerMatch[1])
 				.toArray()[0];

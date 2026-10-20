@@ -103,7 +103,7 @@ function runtimeHarness() {
 		storage: { sql, transactionSync: (fn: () => unknown) => db.transaction(fn)() },
 		blockConcurrencyWhile: (fn: () => Promise<unknown>) => fn(),
 	} as unknown as DurableObjectState;
-	return { ctx, container, requests, admitted, starts: () => starts, destroys: () => destroys, timeouts: () => timeouts };
+	return { ctx, container, requests, admitted, sql, starts: () => starts, destroys: () => destroys, timeouts: () => timeouts };
 }
 
 test("landing, dashboard, worker detail and assets are served by the Worker asset binding", async () => {
@@ -139,6 +139,25 @@ test("public worker inventory is served by the runtime API", async () => {
 	const response = await worker.fetch(visit("/api/workers"), env);
 	expect(response.status).toBe(200);
 	expect(state.calls).toBe(1);
+});
+
+test("inventory reads restore shipments and repair their Worker domains", async () => {
+	domainRequests.length = 0;
+	const { ctx, sql, starts } = runtimeHarness();
+	const runtime = new NativeRuntime(ctx, env);
+	const bytes = new Uint8Array([1, 2, 3]);
+	const checksum = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (byte) => byte.toString(16).padStart(2, "0")).join("");
+	const slug = "hello_0123456789abcdef";
+	sql.exec("INSERT INTO shipments (slug, app, digest, size, checksum, active, domain_attached) VALUES (?, ?, ?, ?, ?, 1, 0)", slug, "hello", "a".repeat(64), bytes.byteLength, checksum);
+	sql.exec("INSERT INTO chunks (slug, part, data) VALUES (?, 0, ?)", slug, bytes.buffer);
+
+	const response = await runtime.fetch(new Request("https://midgard.leostera.dev/api/workers"));
+	const body = await response.json() as { workers: Array<{ slug: string }> };
+	expect(response.status).toBe(200);
+	expect(body.workers.map(({ slug }) => slug)).toEqual([slug]);
+	expect(starts()).toBe(1);
+	expect(domainRequests).toHaveLength(1);
+	expect(domainRequests[0]?.body.hostname).toBe("hello-0123456789abcdef.midgard.leostera.dev");
 });
 
 test("unrelated writes and unknown paths never reach the backend", async () => {
