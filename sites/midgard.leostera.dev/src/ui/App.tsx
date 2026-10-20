@@ -108,7 +108,7 @@ function Header() {
 function Footer() {
   return (
     <footer className="footer">
-      <span>Midgard <span className="muted">· Elixir platform for BEAM apps</span></span>
+      <span>Midgard</span>
       <a href="https://github.com/leostera/midgard">Open source on GitHub</a>
     </footer>
   );
@@ -222,8 +222,9 @@ mix midgard.deploy --artifact examples/gleam_worker/amber_worker.midgard`,
     setupTitle: "Get the toolchain",
     setup: `git clone https://github.com/leostera/midgard.git
 cd midgard
+mix archive.install github leostera/midgard --app packer --sparse apps/packer --force
 mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force`,
-    setupNote: "Requires rebar3 and OTP 29. This uses the complete working example in examples/erlang_worker.",
+    setupNote: "Requires rebar3 and OTP 29. This uses the repository's local rebar3_midgard plugin.",
     sourceTitle: "Handle a request",
     source: `-include_lib("midgard/include/midgard.hrl").
 
@@ -236,10 +237,9 @@ handle_request(_Request) ->
     sourceUrl: "https://github.com/leostera/midgard/blob/main/examples/erlang_worker/src/erlang_worker.erl",
     buildTitle: "Build and publish",
     build: `(cd examples/erlang_worker && rebar3 eunit)
-mix packer.pack --project examples/erlang_worker --entry erlang_worker \\
-  --function handle --protocol midgard.bytes.v1
-mix midgard.deploy --artifact examples/erlang_worker/erlang_worker.midgard`,
-    buildNote: "Packer includes the compiled app and dependencies; each deploy prints a new immutable worker URL.",
+cd examples/erlang_worker
+rebar3 midgard deploy`,
+    buildNote: "The Rebar3 provider compiles, packages, and deploys; each deployment gets a new immutable worker URL."
   },
 };
 
@@ -329,14 +329,14 @@ function Landing() {
         <div className="hero-copy">
           <h1>Serverless <RotatingLanguage /></h1>
           <p className="hero-platform">running on Cloudflare</p>
-          <p className="hero-intro">Deploy Elixir, Erlang, and Gleam code as immutable BEAM shipments. Midgard’s Elixir platform runs them with libbeam in a Cloudflare Container.</p>
+          <p className="hero-intro">Deploy Elixir, Erlang, and Gleam handlers to libbeam on Cloudflare. Every deployment gets its own immutable public URL.</p>
           <div className="hero-actions">
             <a className="button button-primary" href="#deploy">Deploy a worker</a>
             <a className="button button-quiet" href="/workers">Explore public demos</a>
           </div>
         </div>
         <div className="hero-value">
-          <p>Elixir platform + native libbeam</p>
+          <p>BEAM workers · libbeam runtime</p>
           <p>One public URL per deployment</p>
         </div>
       </section>
@@ -369,7 +369,7 @@ function WorkerPage({ slug }: { slug: string }) {
       {state.status === "error" && <div className="empty-state"><h1>Worker not found</h1><p>This route may have been removed or the public demo may be restarting.</p><a href="/workers">Browse public workers</a></div>}
       {state.status === "ready" && <div className="worker-detail">
         <h1>{state.value.name}<span className="brand-dot">.</span></h1>
-        <p className="detail-copy">This BEAM shipment runs through Midgard’s Elixir platform. Anyone with its public URL can call it; each deployment gets its own immutable URL.</p>
+        <p className="detail-copy">This worker runs on libbeam in a Cloudflare Container. Anyone with its public URL can call it; every deployment gets its own immutable URL.</p>
         <div className="detail-box"><span>PUBLIC URL</span><a href={state.value.url}>{new URL(state.value.url, window.location.origin).href}</a></div>
         <a className="button button-primary" href={state.value.url}>Open worker</a>
         <div className="detail-meta"><span>Shipment SHA-256</span><code>{state.value.digest.slice(0, 16)}…</code><span>Shipment size</span><code>{state.value.size.toLocaleString()} bytes</code></div>
