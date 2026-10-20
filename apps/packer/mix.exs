@@ -10,6 +10,11 @@ defmodule Packer.MixProject do
       version: "0.1.0",
       elixir: "~> 1.19",
       description: "Versioned BEAM artifact assembler and static verifier",
+      package: [
+        name: "midgard_packer",
+        licenses: ["MIT"],
+        links: %{"GitHub" => "https://github.com/leostera/midgard"}
+      ],
       deps: []
     ]
   end

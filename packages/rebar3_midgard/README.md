@@ -31,4 +31,11 @@ mix archive.install github leostera/midgard --app packer --sparse apps/packer --
 mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force
 ```
 
-The repository example resolves these pinned versions from local `_checkouts` symlinks. Once `midgard` and `rebar3_midgard` are published to Hex, standalone projects can use the same declarations and Rebar3 will fetch them automatically; users will not need to clone Midgard. These packages are not published yet.
+After the archives are published to Hex, the clone-free installs will be:
+
+```sh
+mix archive.install hex midgard_packer --force
+mix archive.install hex midgard_cli --force
+```
+
+Those Hex releases are not published yet. The repository example resolves these pinned versions from local `_checkouts` symlinks. Once `midgard` and `rebar3_midgard` are published to Hex, standalone projects can use the same declarations and Rebar3 will fetch them automatically; users will not need to clone Midgard. These packages are not published yet.

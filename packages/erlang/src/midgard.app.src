@@ -1,5 +1,7 @@
 {application, midgard,
  [{description, "Midgard helpers for Erlang workers"},
   {vsn, "0.1.0"},
+  {licenses, ["MIT"]},
+  {links, [{"GitHub", "https://github.com/leostera/midgard"}]},
   {modules, [midgard]},
   {applications, [kernel, stdlib]}]}.

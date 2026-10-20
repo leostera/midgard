@@ -1,5 +1,7 @@
 name = "midgard"
 version = "0.1.0"
+description = "Framework request and response types for Midgard Gleam workers"
+licences = ["MIT"]
 
 [dependencies]
 

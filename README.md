@@ -124,3 +124,7 @@ native admission. Anonymous demo routes are immutable, not private accounts;
 this is not a production tenant-isolation or availability guarantee.
 
 Build only trusted source: compilers, dependencies, and macros run with your developer privileges. An execution host will need to independently verify and admit the entire BEAM group and enforce its own resource and authority policy. For maintainers, [RFD0002](docs/rfds/RFD0002-artifact-and-worker-contract.md) specifies the implemented artifact and byte contracts.
+
+## License
+
+Midgard is licensed under the [MIT License](LICENSE).
