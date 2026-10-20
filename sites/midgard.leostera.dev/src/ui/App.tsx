@@ -177,17 +177,22 @@ const quickstartExamples: Record<QuickstartLanguage, QuickstartExample> = {
 mix midgard.new hello_worker
 cd hello_worker
 mix deps.get`,
-    setupNote: "Use OTP 29 and the pinned Elixir before fetching dependencies.",
+    setupNote: "Use OTP 29 and the pinned Elixir. The scaffold fetches the published midgard and midgard_packer packages from Hex.",
     sourceTitle: "Handle a request",
-    source: `def handle_request(%Midgard.Request{method: "GET", path: "/"}),
-  do: {200, "Hello Joe!"}`,
+    source: `def handle_request(%Midgard.Request{method: "GET", path: "/hello/" <> name})
+    when name != "",
+    do: {200, HelloWorker.Greeting.hello(name)}
+
+def handle_request(%Midgard.Request{method: "GET", path: path})
+    when path in ["/", "/hello"],
+    do: {200, HelloWorker.Greeting.hello("world")}`,
     sourceFile: "lib/hello_worker.ex",
-    sourceNote: "Tiny handler excerpt for illustration; the linked scaffold contains the full project and deployment steps.",
+    sourceNote: "Excerpt from the generated worker; the linked scaffold template contains the full project and deployment steps.",
     sourceUrl: "https://github.com/leostera/midgard/blob/main/apps/midgard_cli/lib/midgard/cli/generator.ex",
-    buildTitle: "Test and publish",
+    buildTitle: "Test and deploy",
     build: `mix test
 mix midgard.deploy`,
-    buildNote: "The scaffolded worker is complete; the small code example above is only illustrative."
+    buildNote: "The scaffold is complete and its README includes the full build and deployment instructions."
   },
   gleam: {
     label: "Gleam",
@@ -198,25 +203,27 @@ mix archive.install hex midgard_packer --force
 mix archive.install hex midgard_cli --force`,
     setupNote: "Requires Gleam, Elixir/Mix, and OTP 29. The checked-in example fetches the published midgard_gleam SDK from Hex.",
     sourceTitle: "Handle a request",
-    source: `import midgard
-
-pub fn handle_request(request: midgard.Request) -> midgard.Response {
-  case request.method, request.path {
-    <<"GET":utf8>>, <<"/":utf8>> ->
-      midgard.Response(status: 200, body: <<"Hello Joe!":utf8>>)
-    _, _ ->
-      midgard.Response(status: 404, body: <<"Not found\\n":utf8>>)
+    source: `fn dispatch(method: BitArray, path: BitArray) -> BitArray {
+  case method, path {
+    <<"GET":utf8>>, <<"/hello":utf8>> ->
+      response(200, hello(<<"world":utf8>>))
+    <<"GET":utf8>>, <<"/hello/":utf8, name:bits>> ->
+      case valid_name(name) {
+        True -> response(200, hello(name))
+        False -> not_found()
+      }
+    _, _ -> not_found()
   }
 }`,
     sourceFile: "examples/gleam_worker/src/amber_worker.gleam",
     sourceNote: "Tiny handler excerpt for illustration; the linked example shows the complete worker.",
     sourceUrl: "https://github.com/leostera/midgard/blob/main/examples/gleam_worker/src/amber_worker.gleam",
-    buildTitle: "Build and publish",
+    buildTitle: "Build and deploy",
     build: `(cd examples/gleam_worker && gleam build --target erlang)
 mix packer.pack --project examples/gleam_worker --gleam \\
   --entry amber_worker --function handle --protocol midgard.bytes.v1
 mix midgard.deploy --artifact examples/gleam_worker/amber_worker.midgard`,
-    buildNote: "Build and publish the worker; each deployment gets its own URL."
+    buildNote: "Build and deploy the worker; each deployment gets its own URL."
   },
   erlang: {
     label: "Erlang",
@@ -225,20 +232,24 @@ mix midgard.deploy --artifact examples/gleam_worker/amber_worker.midgard`,
 mix archive.install hex midgard_cli --force`,
     setupNote: "Requires Elixir/Mix, Rebar3, and OTP 29. Rebar3 installs the pinned SDK and plugin from rebar.config.",
     sourceTitle: "Handle a request",
-    source: `-include_lib("midgard/include/midgard.hrl").
+    source: `route(<<"GET">>, <<"/hello">>) -> reply(200, hello(<<"world">>));
+route(<<"GET">>, <<"/hello/", Name/binary>>) ->
+    case valid_name(Name) of
+        true -> reply(200, hello(Name));
+        false -> reply(404, <<"Not found\\n">>)
+    end;
+route(_, _) -> reply(404, <<"Not found\\n">>).
 
-handle_request(#midgard_request{method = <<"GET">>, path = <<"/">>}) ->
-    #midgard_response{status = 200, body = <<"Hello Joe!">>};
-handle_request(_Request) ->
-    #midgard_response{status = 404, body = <<"Not found\\n">>}.`,
+reply(Status, Body) ->
+    midgard:encode_response(#midgard_response{status = Status, body = Body}).`,
     sourceFile: "examples/erlang_worker/src/erlang_worker.erl",
     sourceNote: "Tiny handler excerpt for illustration; the linked example shows the complete worker.",
     sourceUrl: "https://github.com/leostera/midgard/blob/main/examples/erlang_worker/src/erlang_worker.erl",
-    buildTitle: "Build and publish",
+    buildTitle: "Build and deploy",
     build: `(cd examples/erlang_worker && rebar3 eunit)
 cd examples/erlang_worker
 rebar3 midgard deploy`,
-    buildNote: "Build and publish the worker; each deployment gets its own URL."
+    buildNote: "Build and deploy the worker; each deployment gets its own URL."
   },
 };
 
@@ -274,7 +285,7 @@ function Quickstart() {
     <section className="deploy-section" id="deploy">
       <div className="section-heading">
         <h2>From worker code to public URL</h2>
-        <p>Pick a language to see a small handler and how to publish a worker. Demo deployments are public; don’t include secrets or private code.</p>
+        <p>Pick a language to see a handler example and how to deploy a worker. Demo deployments are public; don’t include secrets or private code.</p>
       </div>
       <div className="terminal-card">
         <div className="quickstart-tabs" role="tablist" aria-label="Worker language">
