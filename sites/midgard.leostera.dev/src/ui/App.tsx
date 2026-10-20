@@ -131,7 +131,7 @@ function WorkerInventory({ compact = false }: { compact?: boolean }) {
   if (state.status === "loading") return <p className="state-message">Loading public demos…</p>;
   if (state.status === "error") return <p className="state-message">The worker inventory is temporarily unavailable.</p>;
   if (state.value.length === 0) {
-    return <p className="state-message">No public demos yet. Deploy one with <code>mix midgard.deploy</code> to list it here.</p>;
+    return <p className="state-message">No public demos yet. Deploy a worker to see it here.</p>;
   }
   const workers = compact ? state.value.slice(0, 3) : state.value;
   return <div className="worker-list">{workers.map((worker) => <WorkerCard key={worker.slug} worker={worker} />)}</div>;
@@ -208,14 +208,14 @@ pub fn handle_request(request: midgard.Request) -> midgard.Response {
   }
 }`,
     sourceFile: "examples/gleam_worker/src/amber_worker.gleam",
-    sourceNote: "Tiny handler excerpt for illustration; the linked example shows the full worker and protocol boundary.",
+    sourceNote: "Tiny handler excerpt for illustration; the linked example shows the complete worker.",
     sourceUrl: "https://github.com/leostera/midgard/blob/main/examples/gleam_worker/src/amber_worker.gleam",
     buildTitle: "Build and publish",
     build: `(cd examples/gleam_worker && gleam build --target erlang)
 mix packer.pack --project examples/gleam_worker --gleam \\
   --entry amber_worker --function handle --protocol midgard.bytes.v1
 mix midgard.deploy --artifact examples/gleam_worker/amber_worker.midgard`,
-    buildNote: "The Packer task builds the BEAM shipment; each deploy prints a new immutable worker URL.",
+    buildNote: "Build and publish the worker; each deployment gets its own URL."
   },
   erlang: {
     label: "Erlang",
@@ -233,13 +233,13 @@ handle_request(#midgard_request{method = <<"GET">>, path = <<"/">>}) ->
 handle_request(_Request) ->
     #midgard_response{status = 404, body = <<"Not found\\n">>}.`,
     sourceFile: "examples/erlang_worker/src/erlang_worker.erl",
-    sourceNote: "Tiny handler excerpt for illustration; the linked example shows the full worker and protocol boundary.",
+    sourceNote: "Tiny handler excerpt for illustration; the linked example shows the complete worker.",
     sourceUrl: "https://github.com/leostera/midgard/blob/main/examples/erlang_worker/src/erlang_worker.erl",
     buildTitle: "Build and publish",
     build: `(cd examples/erlang_worker && rebar3 eunit)
 cd examples/erlang_worker
 rebar3 midgard deploy`,
-    buildNote: "The Rebar3 provider compiles, packages, and deploys; each deployment gets a new immutable worker URL."
+    buildNote: "Build and publish the worker; each deployment gets its own URL."
   },
 };
 
@@ -275,7 +275,7 @@ function Quickstart() {
     <section className="deploy-section" id="deploy">
       <div className="section-heading">
         <h2>From worker code to public URL</h2>
-        <p>Pick a language to see its source and build steps. The shared demo is public—don’t upload secrets or private code.</p>
+        <p>Pick a language to see a small handler and how to publish a worker. Demo deployments are public; don’t include secrets or private code.</p>
       </div>
       <div className="terminal-card">
         <div className="quickstart-tabs" role="tablist" aria-label="Worker language">
@@ -313,7 +313,7 @@ function Quickstart() {
             <div>
               <h3><span>03</span>{example.buildTitle}</h3>
               <HighlightedCode source={example.build} language="bash" />
-              <small>{example.buildNote} Public calls use the worker subdomain; <code>/run/</code> stays internal.</small>
+              <small>{example.buildNote}</small>
             </div>
           </div>
         </div>
@@ -328,16 +328,11 @@ function Landing() {
       <section className="hero">
         <div className="hero-copy">
           <h1>Serverless <RotatingLanguage /></h1>
-          <p className="hero-platform">running on Cloudflare</p>
-          <p className="hero-intro">Deploy Elixir, Erlang, and Gleam handlers to libbeam on Cloudflare. Every deployment gets its own immutable public URL.</p>
+          <p className="hero-intro">Deploy Elixir, Erlang, and Gleam workers. Every deployment gets its own immutable public URL.</p>
           <div className="hero-actions">
             <a className="button button-primary" href="#deploy">Deploy a worker</a>
             <a className="button button-quiet" href="/workers">Explore public demos</a>
           </div>
-        </div>
-        <div className="hero-value">
-          <p>BEAM workers · libbeam runtime</p>
-          <p>One public URL per deployment</p>
         </div>
       </section>
 
@@ -354,7 +349,7 @@ function Landing() {
 function InventoryPage() {
   return (
     <main className="page-main">
-      <div className="page-heading"><h1>Public demo workers</h1><p>Every deployment here is visible and callable by anyone. The shared demo has no private projects or access controls; don’t upload secrets or private code.</p></div>
+      <div className="page-heading"><h1>Public demo workers</h1><p>These workers are public: anyone with a URL can call them. Don’t deploy secrets or private code.</p></div>
       <WorkerInventory />
     </main>
   );
@@ -369,7 +364,7 @@ function WorkerPage({ slug }: { slug: string }) {
       {state.status === "error" && <div className="empty-state"><h1>Worker not found</h1><p>This route may have been removed or the public demo may be restarting.</p><a href="/workers">Browse public workers</a></div>}
       {state.status === "ready" && <div className="worker-detail">
         <h1>{state.value.name}<span className="brand-dot">.</span></h1>
-        <p className="detail-copy">This worker runs on libbeam in a Cloudflare Container. Anyone with its public URL can call it; every deployment gets its own immutable URL.</p>
+        <p className="detail-copy">Anyone with this URL can call the worker. Every deployment gets its own immutable URL.</p>
         <div className="detail-box"><span>PUBLIC URL</span><a href={state.value.url}>{new URL(state.value.url, window.location.origin).href}</a></div>
         <a className="button button-primary" href={state.value.url}>Open worker</a>
         <div className="detail-meta"><span>Shipment SHA-256</span><code>{state.value.digest.slice(0, 16)}…</code><span>Shipment size</span><code>{state.value.size.toLocaleString()} bytes</code></div>
