@@ -7,7 +7,7 @@ Build Erlang workers with framework request/response records and a small respons
 Add the SDK to `rebar.config`:
 
 ```erlang
-{deps, [{midgard, {pkg, midgard_erlang, "0.2.0"}}]}.
+{deps, [{midgard, "0.2.0", {pkg, midgard_erlang}}]}.
 ```
 
 The Hex package is named `midgard_erlang`; the Erlang application and module remain `midgard`.

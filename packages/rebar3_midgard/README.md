@@ -7,7 +7,7 @@ Build and ship an Erlang worker from the Rebar3 workflow you already use. The pl
 Declare the Erlang SDK and project plugin in `rebar.config`:
 
 ```erlang
-{deps, [{midgard, {pkg, midgard_erlang, "0.2.0"}}]}.
+{deps, [{midgard, "0.2.0", {pkg, midgard_erlang}}]}.
 {project_plugins, [{rebar3_midgard, "0.2.0"}]}.
 {midgard, [
     {entry, my_worker},
@@ -16,7 +16,7 @@ Declare the Erlang SDK and project plugin in `rebar.config`:
 ]}.
 ```
 
-When these Hex releases are available, Rebar3 will fetch the plugin and SDK from the project configuration; no Midgard repository checkout is needed.
+These packages are published on Hex. Rebar3 fetches the plugin and SDK from the project configuration; no Midgard repository checkout is needed.
 
 ## Commands
 

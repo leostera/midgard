@@ -1,1 +1,8 @@
-[].
+{"1.2.0",
+[{<<"midgard">>,{pkg,<<"midgard_erlang">>,<<"0.2.0">>},0}]}.
+[
+{pkg_hash,[
+ {<<"midgard">>, <<"5E2F28033BC657BEAE493429F8BF0189B32788E445B8738097FB67B662EFC329">>}]},
+{pkg_hash_ext,[
+ {<<"midgard">>, <<"D87CC312FD049FE5EDE354E8DB9271A9F8E64136C963A8377E68B70CFA1DC69E">>}]}
+].

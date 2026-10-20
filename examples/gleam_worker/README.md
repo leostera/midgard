@@ -1,6 +1,6 @@
 # Gleam HTTP-shaped worker
 
-This Erlang-target Gleam package depends on the Midgard Gleam framework library in `packages/gleam` through a local path dependency. Its binary `amber_worker.handle/1` parses the `midgard.bytes.v1` request envelope, handles routes, and creates greeting bodies. `midgard.encode_response` encodes a framework `midgard.Response` value. It serves `GET /hello` and `GET /hello/:name`; other routes return 404. The worker runs in libbeam, not an Erlang web server.
+This Erlang-target Gleam package depends on the published `midgard_gleam` framework library from Hex. Its binary `amber_worker.handle/1` parses the `midgard.bytes.v1` request envelope, handles routes, and creates greeting bodies. `midgard.encode_response` encodes a framework `midgard.Response` value. It serves `GET /hello` and `GET /hello/:name`; other routes return 404. The worker runs in libbeam, not an Erlang web server.
 
 ```sh
 # From the Midgard repository root:
@@ -13,4 +13,4 @@ mix midgard.deploy --artifact examples/gleam_worker/amber_worker.midgard
 
 After deploying, append `/hello` or `/hello/joe` to the printed route prefix and open it in a browser. [Try the deployed Gleam example](https://amber-worker-e9dfb376334b222c.midgard.leostera.dev/hello/joe): `GET /hello/joe` responds with `hello, joe!` as `text/plain`; `/hello` defaults to `hello, world!`. Each redeploy receives a new immutable route.
 
-Packer runs the trusted Gleam compiler's `export erlang-shipment`, includes only `.app`-declared production modules, and refuses native resources. Gleam's undeclared generated CLI `@@main` is not a worker module. All declared production dependencies must be packaged. The public host independently verifies and admits the exact BEAM group; successful execution of this small example does not guarantee that another Gleam project's library closure runs in libbeam.
+Packer runs the trusted Gleam compiler's `export erlang-shipment`, includes only `.app`-declared production modules, and refuses native resources in the project or downloaded package sources. Gleam's undeclared generated CLI `@@main` is not a worker module. All declared production dependencies must be packaged. The public host independently verifies and admits the exact BEAM group; successful execution of this small example does not guarantee that another Gleam project's library closure runs in libbeam.

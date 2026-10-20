@@ -2,7 +2,12 @@
 
 Packer turns your compiled Elixir, Erlang, or Gleam worker into an inspectable `<app>.midgard/` artifact: the worker entrypoint, original BEAM names, compiled dependencies, and checksums together in one handoff. Use it to see exactly what a future libbeam Isolate host would need to admit. **Packaging is available across these languages; the Midgard request-handling API is Elixir-only for now.**
 
-You need Elixir 1.19 and OTP 27+ for the shared Packer/deploy archives, plus rebar3 or Gleam for those project types. Run these commands from the Midgard checkout unless you have installed the CLI in another project.
+You need Elixir 1.19 and OTP 27+ for the shared Packer/deploy archives, plus Rebar3 or Gleam for those project types. Install the published tooling archives once; you do not need a Midgard repository checkout:
+
+```sh
+mix archive.install hex midgard_packer --force
+mix archive.install hex midgard_cli --force
+```
 
 ## Build
 
@@ -26,7 +31,7 @@ rebar3 midgard pack
 rebar3 midgard deploy
 ```
 
-The provider runs Rebar3's normal compile task and passes the compiled project to the shared Packer. The current plugin delegates artifact creation and deployment to the Packer and CLI Mix archives, so Elixir/Mix is also required. One application per project is supported; rebar3 umbrellas are not. Compiled checkout dependencies are included, but their versions are not lockfile-pinned. See the [Erlang worker example](../examples/erlang_worker/README.md).
+The provider runs Rebar3's normal compile task and passes the compiled project to the shared Packer. The current plugin delegates artifact creation and deployment to the Packer and CLI Mix archives, so Elixir/Mix is also required. One application per project is supported; Rebar3 umbrellas are not. Compiled Hex and checkout dependencies are included; commit `rebar.lock` to pin the resolved dependency graph. See the [Erlang worker example](../examples/erlang_worker/README.md).
 
 The lower-level `mix packer.pack --project DIR --entry MODULE --function NAME --protocol ID` remains available for scripted builds.
 

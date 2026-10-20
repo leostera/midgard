@@ -194,8 +194,9 @@ mix midgard.deploy`,
     setupTitle: "Get the toolchain",
     setup: `git clone https://github.com/leostera/midgard.git
 cd midgard
+mix archive.install hex midgard_packer --force
 mix archive.install hex midgard_cli --force`,
-    setupNote: "Requires Gleam and OTP 29. This uses the complete working example in examples/gleam_worker.",
+    setupNote: "Requires Gleam, Elixir/Mix, and OTP 29. The checked-in example fetches the published midgard_gleam SDK from Hex.",
     sourceTitle: "Handle a request",
     source: `import midgard
 

@@ -73,19 +73,20 @@ defmodule Packer.GleamTest do
       Path.join(System.tmp_dir!(), "gleam-safety-#{System.unique_integer([:positive])}")
 
     project = Path.join(workspace, "examples/gleam_worker")
-    library = Path.join(workspace, "packages/gleam")
+    dependency = Path.join(project, "build/packages/midgard_gleam")
+    library = Path.expand("../../../packages/gleam", __DIR__)
 
     if System.find_executable("gleam") do
       File.mkdir_p!(Path.dirname(project))
-      File.mkdir_p!(Path.dirname(library))
+      File.mkdir_p!(Path.dirname(dependency))
 
       try do
         File.cp_r!(@project, project)
-        File.cp_r!(Path.expand("../../../packages/gleam", __DIR__), library)
-        File.mkdir_p!(Path.join(library, "c_src"))
+        File.cp_r!(library, dependency)
+        File.mkdir_p!(Path.join(dependency, "c_src"))
         assert {:error, reason} = Packer.pack(Keyword.put(@options, :project, project))
         assert reason =~ "native code"
-        File.rm_rf!(Path.join(library, "c_src"))
+        File.rm_rf!(Path.join(dependency, "c_src"))
         File.rm!(Path.join(project, "manifest.toml"))
         assert {:error, reason} = Packer.pack(Keyword.put(@options, :project, project))
         assert reason =~ "manifest.toml"

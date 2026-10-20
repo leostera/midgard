@@ -15,11 +15,19 @@ defmodule Packer.Gleam do
          {:ok, executable} <- executable(opts[:gleam_bin]),
          {:ok, project} <- project_info(root, executable),
          {:ok, lock} <- File.read(Path.join(root, "manifest.toml")),
-         :ok <- reject_native_sources([root | project.local_dependencies]),
+         :ok <-
+           reject_native_sources([
+             root,
+             Path.join(root, "build/packages") | project.local_dependencies
+           ]),
          {:ok, version} <- gleam_version(executable),
          :ok <- export(root, executable),
          :ok <- lock_unchanged(root, lock),
-         :ok <- reject_native_sources([root | project.local_dependencies]),
+         :ok <-
+           reject_native_sources([
+             root,
+             Path.join(root, "build/packages") | project.local_dependencies
+           ]),
          {:ok, apps} <- shipment(root, project.name) do
       modules =
         for app <- apps,
