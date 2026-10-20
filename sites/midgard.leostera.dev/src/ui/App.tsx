@@ -148,9 +148,44 @@ function Landing() {
         <div className="section-heading"><h2>From Mix project to public URL</h2><p>Install the CLI, create a starter project, and publish a callable BEAM shipment. This shared demo is public—don’t upload secrets or private code.</p></div>
         <div className="terminal-card">
           <div className="quickstart-steps">
-            <div><span>01</span><strong>Install the CLI</strong><pre><code>mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force</code></pre></div>
-            <div><span>02</span><strong>Create a project</strong><pre><code>mix midgard.new hello_world{"\n"}cd hello_world && mix deps.get</code></pre></div>
-            <div><span>03</span><strong>Deploy</strong><pre><code>mix midgard.deploy</code></pre></div>
+            <div>
+              <span>01</span>
+              <strong>Install and scaffold</strong>
+              <pre><code>{`mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force
+mix midgard.new hello_world
+cd hello_world
+mix deps.get`}</code></pre>
+            </div>
+            <div>
+              <span>02</span>
+              <strong>Write the worker</strong>
+              <pre><code>{`# lib/hello_world.ex
+defmodule HelloWorld do
+  use Midgard.Worker
+
+  @impl true
+  def handle_request(%Midgard.Request{method: "GET", path: "/hello/" <> name}) when name != "",
+    do: {200, HelloWorld.Greeting.hello(name)}
+
+  def handle_request(_request), do: {404, "Not found\\n"}
+end
+
+# lib/hello_world/greeting.ex
+defmodule HelloWorld.Greeting do
+  def hello(name), do: "hello, " <> name <> "!"
+end
+
+# midgard.config.exs (generated)
+[entry: HelloWorld, target: :libbeam]`}</code></pre>
+              <small><code>mix midgard.new</code> also generates <code>mix.exs</code>, dependencies, and tests.</small>
+            </div>
+            <div>
+              <span>03</span>
+              <strong>Test and publish</strong>
+              <pre><code>{`mix test
+mix midgard.deploy`}</code></pre>
+              <small>The CLI prints your immutable worker subdomain and a call hint. Public calls use <code>/hello/:name</code>; <code>/run/</code> stays internal.</small>
+            </div>
           </div>
         </div>
       </section>
