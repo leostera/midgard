@@ -147,6 +147,23 @@ button, a { -webkit-tap-highlight-color: transparent; }
   border-bottom: 1px solid #48465d;
 }
 .terminal-bar small { font: 10px var(--mono); letter-spacing: .08em; }
+.quickstart-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 22px 0;
+  border-bottom: 1px solid #48465d;
+}
+.quickstart-tab {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #c5c2d3;
+  font: 600 12px var(--display);
+  cursor: pointer;
+}
+.quickstart-panel { min-width: 0; }
 .quickstart-steps { padding: 4px 18px 8px; }
 .quickstart-steps > div {
   display: grid;
@@ -157,7 +174,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .quickstart-steps > div + div { border-top: 1px solid #48465d; }
 .quickstart-steps > div > span { grid-row: span 2; padding-top: 2px; font: 10px var(--mono); }
 .quickstart-steps strong { font-size: 12px; font-weight: 600; }
-.quickstart-steps small { grid-column: 2; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.quickstart-steps small { grid-column: 2; font-size: 11px; line-height: 1.5; }
+.quickstart-steps .code-filename { font: 10px var(--mono); }
+.quickstart-steps small a { text-decoration: underline; text-underline-offset: 2px; }
 .quickstart-steps pre {
   min-width: 0;
   margin: 0;

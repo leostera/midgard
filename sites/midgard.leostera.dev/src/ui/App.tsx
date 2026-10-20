@@ -1,4 +1,30 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import hljs from "highlight.js/lib/core";
+import bash from "highlight.js/lib/languages/bash";
+import elixir from "highlight.js/lib/languages/elixir";
+import erlang from "highlight.js/lib/languages/erlang";
+import type { LanguageFn } from "highlight.js";
+
+const gleamLanguage: LanguageFn = (highlighter) => ({
+  name: "Gleam",
+  keywords: {
+    keyword: "pub fn let assert case if use import as type opaque external const",
+    literal: "True False",
+    built_in: "todo panic",
+  },
+  contains: [
+    highlighter.COMMENT("//", "$"),
+    highlighter.QUOTE_STRING_MODE,
+    highlighter.C_NUMBER_MODE,
+    { className: "type", begin: /\b[A-Z][A-Za-z0-9_]*\b/ },
+    { className: "title.function", begin: /\b[a-z_][A-Za-z0-9_]*(?=\s*\()/ },
+  ],
+});
+
+hljs.registerLanguage("bash", bash);
+hljs.registerLanguage("elixir", elixir);
+hljs.registerLanguage("erlang", erlang);
+hljs.registerLanguage("gleam", gleamLanguage);
 
 type PublicWorker = {
   slug: string;
@@ -125,6 +151,220 @@ function RotatingLanguage() {
   return <><span className="sr-only">Elixir, Gleam, and Erlang</span><span className="rotating-word" aria-hidden="true" key={workerLanguages[index]}>{workerLanguages[index]}</span></>;
 }
 
+type QuickstartLanguage = "elixir" | "gleam" | "erlang";
+type QuickstartExample = {
+  label: string;
+  setupTitle: string;
+  setup: string;
+  setupNote: string;
+  sourceTitle: string;
+  source: string;
+  sourceFile: string;
+  sourceNote: string;
+  sourceUrl: string;
+  buildTitle: string;
+  build: string;
+  buildNote: string;
+};
+
+const quickstartLanguages: QuickstartLanguage[] = ["elixir", "gleam", "erlang"];
+
+const quickstartExamples: Record<QuickstartLanguage, QuickstartExample> = {
+  elixir: {
+    label: "Elixir",
+    setupTitle: "Install and scaffold",
+    setup: `mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force
+mix midgard.new hello_worker
+cd hello_worker
+mix deps.get`,
+    setupNote: "Use OTP 29 and the pinned Elixir before fetching dependencies.",
+    sourceTitle: "Write the worker",
+    source: `# lib/hello_worker.ex
+defmodule HelloWorker do
+  use Midgard.Worker
+
+  @impl true
+  def handle_request(%Midgard.Request{method: "GET", path: "/hello/" <> name}) when name != "",
+    do: {200, HelloWorker.Greeting.hello(name)}
+
+  def handle_request(_request), do: {404, "Not found\\n"}
+end
+
+# lib/hello_worker/greeting.ex
+defmodule HelloWorker.Greeting do
+  def hello(name), do: "hello, " <> name <> "!"
+end
+
+# midgard.config.exs (generated)
+[entry: HelloWorker, target: :libbeam]`,
+    sourceFile: "lib/hello_worker.ex + midgard.config.exs",
+    sourceNote: "The scaffold also creates mix.exs, dependencies, tests, and the pinned project README.",
+    sourceUrl: "https://github.com/leostera/midgard/blob/main/apps/midgard_cli/lib/midgard/cli/generator.ex",
+    buildTitle: "Test and publish",
+    build: `mix test
+mix midgard.deploy`,
+    buildNote: "The CLI prints your immutable worker URL and a call hint for /hello/:name.",
+  },
+  gleam: {
+    label: "Gleam",
+    setupTitle: "Get the toolchain",
+    setup: `git clone https://github.com/leostera/midgard.git
+cd midgard
+mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force`,
+    setupNote: "Requires Gleam and OTP 29. This uses the complete working example in examples/gleam_worker.",
+    sourceTitle: "Handle a request",
+    source: `fn dispatch(method: BitArray, path: BitArray) -> BitArray {
+  case method, path {
+    <<"GET":utf8>>, <<"/hello":utf8>> ->
+      amber_helper.response(200, amber_helper.hello(<<"world":utf8>>))
+    <<"GET":utf8>>, <<"/hello/":utf8, name:bits>> ->
+      case name {
+        <<>> -> not_found()
+        _ ->
+          case valid_name(name) {
+            True -> amber_helper.response(200, amber_helper.hello(name))
+            False -> not_found()
+          }
+      }
+    _, _ -> not_found()
+  }
+}
+
+fn valid_name(name: BitArray) -> Bool {
+  case name {
+    <<>> -> True
+    <<"/":utf8, _rest:bits>> -> False
+    <<_byte, rest:bits>> -> valid_name(rest)
+    _ -> False
+  }
+}
+
+fn not_found() -> BitArray {
+  amber_helper.response(404, <<"Not found\\n":utf8>>)
+}`,
+    sourceFile: "examples/gleam_worker/src/amber_worker.gleam",
+    sourceNote: "Route excerpt; the complete file also frames midgard.bytes.v1 requests.",
+    sourceUrl: "https://github.com/leostera/midgard/blob/main/examples/gleam_worker/src/amber_worker.gleam",
+    buildTitle: "Build and publish",
+    build: `(cd examples/gleam_worker && gleam build --target erlang)
+mix packer.pack --project examples/gleam_worker --gleam \\
+  --entry amber_worker --function handle --protocol midgard.bytes.v1
+mix midgard.deploy --artifact examples/gleam_worker/amber_worker.midgard`,
+    buildNote: "The Packer task builds the BEAM shipment; each deploy prints a new immutable worker URL.",
+  },
+  erlang: {
+    label: "Erlang",
+    setupTitle: "Get the toolchain",
+    setup: `git clone https://github.com/leostera/midgard.git
+cd midgard
+mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force`,
+    setupNote: "Requires rebar3 and OTP 29. This uses the complete working example in examples/erlang_worker.",
+    sourceTitle: "Route a request",
+    source: `route(<<"GET">>, <<"/hello">>) ->
+    reply(200, erlang_helper:hello(<<"world">>));
+route(<<"GET">>, <<"/hello/", Name/binary>>) ->
+    case valid_name(Name) of
+        true -> reply(200, erlang_helper:hello(Name));
+        false -> reply(404, <<"Not found\\n">>)
+    end;
+route(_, _) -> reply(404, <<"Not found\\n">>).
+
+valid_name(<<>>) -> false;
+valid_name(Name) -> no_slash(Name).`,
+    sourceFile: "examples/erlang_worker/src/erlang_worker.erl",
+    sourceNote: "Route excerpt; the complete file also frames midgard.bytes.v1 requests.",
+    sourceUrl: "https://github.com/leostera/midgard/blob/main/examples/erlang_worker/src/erlang_worker.erl",
+    buildTitle: "Build and publish",
+    build: `(cd examples/erlang_worker && rebar3 eunit)
+mix packer.pack --project examples/erlang_worker --entry erlang_worker \\
+  --function handle --protocol midgard.bytes.v1
+mix midgard.deploy --artifact examples/erlang_worker/erlang_worker.midgard`,
+    buildNote: "Packer includes the compiled app and dependencies; each deploy prints a new immutable worker URL.",
+  },
+};
+
+function HighlightedCode({ source, language }: { source: string; language: QuickstartLanguage | "bash" }) {
+  const html = hljs.highlight(source, { language, ignoreIllegals: true }).value;
+  return <pre className="quickstart-code" tabIndex={0} aria-label={`${language} example code`}><code dangerouslySetInnerHTML={{ __html: html }} /></pre>;
+}
+
+function Quickstart() {
+  const [activeLanguage, setActiveLanguage] = useState<QuickstartLanguage>("elixir");
+  const tabRefs = useRef<Record<QuickstartLanguage, HTMLButtonElement | null>>({
+    elixir: null,
+    gleam: null,
+    erlang: null,
+  });
+  const example = quickstartExamples[activeLanguage];
+
+  function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, current: QuickstartLanguage) {
+    const currentIndex = quickstartLanguages.indexOf(current);
+    let nextIndex: number | undefined;
+    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % quickstartLanguages.length;
+    if (event.key === "ArrowLeft") nextIndex = (currentIndex + quickstartLanguages.length - 1) % quickstartLanguages.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = quickstartLanguages.length - 1;
+    if (nextIndex === undefined) return;
+    event.preventDefault();
+    const nextLanguage = quickstartLanguages[nextIndex];
+    setActiveLanguage(nextLanguage);
+    tabRefs.current[nextLanguage]?.focus();
+  }
+
+  return (
+    <section className="deploy-section" id="deploy">
+      <div className="section-heading">
+        <h2>From worker code to public URL</h2>
+        <p>Pick a language to see its source and build steps. The shared demo is public—don’t upload secrets or private code.</p>
+      </div>
+      <div className="terminal-card">
+        <div className="quickstart-tabs" role="tablist" aria-label="Worker language">
+          {quickstartLanguages.map((language) => (
+            <button
+              key={language}
+              ref={(element) => { tabRefs.current[language] = element; }}
+              id={`quickstart-tab-${language}`}
+              className="quickstart-tab"
+              type="button"
+              role="tab"
+              aria-selected={activeLanguage === language}
+              aria-controls="quickstart-panel"
+              tabIndex={activeLanguage === language ? 0 : -1}
+              onClick={() => setActiveLanguage(language)}
+              onKeyDown={(event) => handleTabKeyDown(event, language)}
+            >
+              {quickstartExamples[language].label}
+            </button>
+          ))}
+        </div>
+        <div id="quickstart-panel" className="quickstart-panel" role="tabpanel" aria-labelledby={`quickstart-tab-${activeLanguage}`} tabIndex={0}>
+          <div className="quickstart-steps">
+            <div>
+              <span>01</span>
+              <strong>{example.setupTitle}</strong>
+              <HighlightedCode source={example.setup} language="bash" />
+              <small>{example.setupNote} {activeLanguage === "elixir" && <a href="https://github.com/leostera/midgard#install-and-deploy" target="_blank" rel="noreferrer">Toolchain instructions</a>}</small>
+            </div>
+            <div>
+              <span>02</span>
+              <strong>{example.sourceTitle}</strong>
+              <small className="code-filename">{example.sourceFile}</small>
+              <HighlightedCode source={example.source} language={activeLanguage} />
+              <small>{example.sourceNote} <a href={example.sourceUrl} target="_blank" rel="noreferrer">Open full example</a></small>
+            </div>
+            <div>
+              <span>03</span>
+              <strong>{example.buildTitle}</strong>
+              <HighlightedCode source={example.build} language="bash" />
+              <small>{example.buildNote} Public calls use the worker subdomain; <code>/run/</code> stays internal.</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Landing() {
   return (
     <>
@@ -144,51 +384,7 @@ function Landing() {
         </div>
       </section>
 
-      <section className="deploy-section" id="deploy">
-        <div className="section-heading"><h2>From Mix project to public URL</h2><p>Install the CLI, create a starter project, and publish a callable BEAM shipment. This shared demo is public—don’t upload secrets or private code.</p></div>
-        <div className="terminal-card">
-          <div className="quickstart-steps">
-            <div>
-              <span>01</span>
-              <strong>Install and scaffold</strong>
-              <pre><code>{`mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force
-mix midgard.new hello_world
-cd hello_world
-mix deps.get`}</code></pre>
-            </div>
-            <div>
-              <span>02</span>
-              <strong>Write the worker</strong>
-              <pre><code>{`# lib/hello_world.ex
-defmodule HelloWorld do
-  use Midgard.Worker
-
-  @impl true
-  def handle_request(%Midgard.Request{method: "GET", path: "/hello/" <> name}) when name != "",
-    do: {200, HelloWorld.Greeting.hello(name)}
-
-  def handle_request(_request), do: {404, "Not found\\n"}
-end
-
-# lib/hello_world/greeting.ex
-defmodule HelloWorld.Greeting do
-  def hello(name), do: "hello, " <> name <> "!"
-end
-
-# midgard.config.exs (generated)
-[entry: HelloWorld, target: :libbeam]`}</code></pre>
-              <small><code>mix midgard.new</code> also generates <code>mix.exs</code>, dependencies, and tests.</small>
-            </div>
-            <div>
-              <span>03</span>
-              <strong>Test and publish</strong>
-              <pre><code>{`mix test
-mix midgard.deploy`}</code></pre>
-              <small>The CLI prints your immutable worker subdomain and a call hint. Public calls use <code>/hello/:name</code>; <code>/run/</code> stays internal.</small>
-            </div>
-          </div>
-        </div>
-      </section>
+      <Quickstart />
 
       <section className="inventory-preview">
         <div className="inventory-title"><h2>Try the public demos</h2><a href="/workers">Browse all demos</a></div>

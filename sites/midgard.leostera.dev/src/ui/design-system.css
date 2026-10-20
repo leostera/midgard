@@ -53,9 +53,23 @@ a { color: inherit; text-underline-offset: .2em; }
 .quickstart-steps { padding: 4px 22px 10px; }
 .quickstart-steps > div { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 7px 10px; padding: 16px 0; }
 .quickstart-steps > div + div { border-top: 1px solid #48465d; }
-.quickstart-steps > div > span { grid-row: span 2; color: var(--accent); font: 11px var(--mono); padding-top: 2px; }
+.quickstart-steps > div > span { grid-row: span 3; color: #c6b5ff; font: 11px var(--mono); padding-top: 2px; }
+.quickstart-steps > div:nth-child(2) > span { grid-row: span 4; }
 .quickstart-steps strong { color: #f0eefb; font-size: 13px; font-weight: 600; }
+.quickstart-steps small { color: #c5c2d3; }
+.quickstart-steps small a { color: #c6b5ff; }
 .quickstart-steps pre { padding: 0; margin: 0; overflow-x: auto; color: #f0eefb; font: 11px/1.7 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.quickstart-code { max-height: 250px; overflow: auto; padding: 9px 11px !important; border-radius: 6px; background: #1a1a29; white-space: pre !important; overflow-wrap: normal !important; }
+.quickstart-code .hljs-comment, .quickstart-code .hljs-quote { color: #9ba2ba; font-style: italic; }
+.quickstart-code .hljs-keyword, .quickstart-code .hljs-literal { color: #d7a8ff; }
+.quickstart-code .hljs-string { color: #b8e39b; }
+.quickstart-code .hljs-title, .quickstart-code .hljs-title.function_, .quickstart-code .hljs-type { color: #82baff; }
+.quickstart-code .hljs-number, .quickstart-code .hljs-symbol { color: #ffba8a; }
+.quickstart-code .hljs-built_in, .quickstart-code .hljs-attribute, .quickstart-code .hljs-params { color: #ffd580; }
+.quickstart-code .hljs-meta { color: #e89dd0; }
+.quickstart-tab:hover { color: #fff; }
+.quickstart-tab[aria-selected="true"] { color: #fff; border-bottom-color: #c6b5ff; }
+.quickstart-tab:focus-visible { outline: 2px solid #c6b5ff; outline-offset: 2px; }
 .inventory-title > a { color: var(--accent-ink); }
 .worker-card { border-color: var(--line); background: #fff; }
 .worker-card:hover { border-color: var(--accent-border); background: var(--accent-soft); }
@@ -76,6 +90,7 @@ a { color: inherit; text-underline-offset: .2em; }
 
 @media (max-width: 760px) {
   .hero-value { justify-self: start; }
+  .quickstart-tabs { padding-inline: 16px; }
   .quickstart-steps { padding-inline: 16px; }
   .quickstart-steps pre { font-size: 10px; }
   .quickstart-steps > div { grid-template-columns: 24px minmax(0, 1fr); }
