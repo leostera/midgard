@@ -40,7 +40,7 @@ const env = {
 	HTTP_RATE: { limit: async () => ({ success: !state.limited }) },
 	DEPLOY_RATE: { limit: async () => ({ success: !state.buildsLimited }) },
 	CLOUDFLARE_ACCOUNT_ID: "test-account",
-	CLOUDFLARE_API_TOKEN: "test-token",
+	CF_DNS_API_TOKEN: "test-token",
 	CLOUDFLARE_WORKER_NAME: "midgard-leostera-dev",
 } as unknown as Env;
 const visit = (path: string, method = "GET", headers: Record<string, string> = {}) => new Request(`https://midgard.leostera.dev${path}`, {

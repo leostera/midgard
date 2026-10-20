@@ -13,12 +13,14 @@ hostname (`<app>-<id>.midgard.leostera.dev`), and forwards it with a DO-managed
 internal key to the existing `Midgard.Platform.Router`. The public edge rewrites
 that hostname to the platform's internal `/run/<slug>/` route; `/run` is not a
 public URL. Each exact hostname is attached to the edge Worker through the
-Cloudflare Workers Domains API. Configure the Worker secret
-`CLOUDFLARE_API_TOKEN` with the permission accepted by Cloudflare's
-[Attach Worker Domain API](https://developers.cloudflare.com/api/resources/workers/subresources/domains/methods/update/):
+Cloudflare Workers Domains API. Configure the Worker runtime secret
+`CF_DNS_API_TOKEN` with the permission accepted by Cloudflare's [Attach Worker
+Domain API](https://developers.cloudflare.com/api/resources/workers/subresources/domains/methods/update/):
 `Workers Scripts Write` (shown in the dashboard as **Account → Workers Scripts
-→ Edit**). Cloudflare marks this permission legacy, but its docs say existing
-legacy permissions continue to work and have no deprecation date. The newer
+→ Edit**). This secret is used only to attach worker hostnames; it is distinct
+from the local `CLOUDFLARE_API_TOKEN` that `cf deploy` may use to authenticate.
+Cloudflare marks this permission legacy, but its docs say existing legacy
+permissions continue to work and have no deprecation date. The newer
 Workers authorization guide mentions `Workers Routes Write`; if that option is
 not available in the token UI, use the permission the domain API explicitly
 accepts. The DO persists exact shipment bytes in SQLite; a

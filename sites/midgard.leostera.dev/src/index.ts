@@ -223,7 +223,7 @@ export class NativeRuntime extends DurableObject<Env> {
 			{
 				method: "PUT",
 				headers: {
-					authorization: `Bearer ${this.env.CLOUDFLARE_API_TOKEN}`,
+					authorization: `Bearer ${this.env.CF_DNS_API_TOKEN}`,
 					"content-type": "application/json",
 				},
 				body: JSON.stringify({
