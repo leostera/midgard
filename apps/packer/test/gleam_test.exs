@@ -32,7 +32,7 @@ defmodule Packer.GleamTest do
                  "protocol" => "midgard.bytes.v1"
                }
 
-        assert Enum.map(manifest["modules"], & &1["name"]) == ["midgard", "amber_worker"]
+        assert Enum.map(manifest["modules"], & &1["name"]) == ["amber_worker", "midgard"]
 
         assert manifest["dependencies"] == [
                  %{"app" => "midgard", "version" => "0.1.0", "modules" => ["midgard"]}

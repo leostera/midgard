@@ -8,13 +8,15 @@ Put Erlang sources in `src/**/*.erl` and Elixir sources in `lib/**/*.ex`. Run `m
 
 ## Standalone rebar3 projects
 
-Install rebar3, then from the Midgard checkout:
+Install rebar3 and the Packer/Midgard CLI Mix archives, then from the Midgard checkout:
 
 ```sh
-mix packer.pack --project examples/erlang_worker --entry erlang_worker \
-  --function handle --protocol midgard.bytes.v1
-mix packer.inspect examples/erlang_worker/erlang_worker.midgard
+mix archive.install github leostera/midgard --app packer --sparse apps/packer --force
+mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force
+(cd examples/erlang_worker && rebar3 midgard pack)
 ```
+
+The `rebar3_midgard` plugin runs the ordinary Rebar3 compile provider, then delegates packaging to the shared Packer backend. The lower-level `mix packer.pack --project ...` command remains available for scripts.
 
 Export the named arity-one function to accept and return bounded binaries. The [fixture](../examples/erlang_worker/README.md) parses the HTTP-shaped `midgard.bytes.v1` wire format, uses the Midgard response type, and implements `GET /hello` and `GET /hello/:name` in application code. Packer reads compiled `.app` metadata to collect one application and its dependencies. Checkout dependency versions are recorded but not lockfile-pinned.
 

@@ -20,13 +20,15 @@ defmodule Packer.Rebar3Test do
           "rebar3-artifact-#{System.unique_integer([:positive])}.midgard"
         )
 
+      skip_output = output <> "-skip-compile"
+
       try do
         assert {:ok, ^output} = Packer.pack(options ++ [rebar3: rebar3, output: output])
         assert {:ok, manifest} = Packer.Verifier.verify(output)
         assert manifest["entrypoint"]["module"] == "erlang_worker"
         assert manifest["entrypoint"]["function"] == "handle"
         assert manifest["entrypoint"]["protocol"] == "midgard.bytes.v1"
-        assert Enum.map(manifest["modules"], & &1["name"]) == ["midgard", "erlang_worker"]
+        assert Enum.map(manifest["modules"], & &1["name"]) == ["erlang_worker", "midgard"]
 
         assert manifest["dependencies"] ==
                  [
@@ -38,8 +40,16 @@ defmodule Packer.Rebar3Test do
                  ]
 
         assert {:ok, %{"execution" => "not_verified"}} = Packer.Profile.report(output)
+
+        assert {:ok, ^skip_output} =
+                 Packer.pack(
+                   options ++ [skip_compile: true, rebar3: "missing-rebar3", output: skip_output]
+                 )
+
+        assert {:ok, _manifest} = Packer.Verifier.verify(skip_output)
       after
         File.rm_rf!(output)
+        File.rm_rf!(skip_output)
       end
     else
       assert {:error, reason} = Packer.pack(options)

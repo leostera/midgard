@@ -4,7 +4,7 @@
 
 Midgard is a worker toolchain: start from a Mix, rebar3, or Erlang-target Gleam project, build a versioned artifact containing your worker and its compiled dependencies, and inspect what you would hand to an Isolate host. Each BEAM keeps its original module name; the manifest records the entrypoint, protocol, dependency ownership, compiler provenance, and checksums. This makes a worker's complete code shipment visible instead of hiding it behind a local OTP installation.
 
-**The framework effort is Elixir-first.** Today you can write an Elixir request handler with `Midgard.Worker`. You can also package Erlang and Gleam workers that export their own binary entrypoint, but Midgard does not provide request-handling APIs for those languages. They do not need to use Elixir or imitate its API. The common boundary is the artifact and its declared byte protocol, leaving room for language-specific APIs later.
+**The framework effort is Elixir-first.** Elixir workers use `Midgard.Worker`; Erlang and Gleam have language-native `Request` and `Response` types plus `midgard.bytes.v1` response encoding. Their current binary fixtures still own request parsing, route matching, and application behavior in their own language. They do not need to imitate the Elixir callback API.
 
 ## Install and deploy
 

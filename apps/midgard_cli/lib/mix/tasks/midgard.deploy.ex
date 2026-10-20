@@ -34,8 +34,9 @@ defmodule Mix.Tasks.Midgard.Deploy do
     path = options[:artifact] || options[:output] || "#{Mix.Project.config()[:app]}.midgard"
 
     if options[:artifact] do
-      # Load project dependencies even when re-uploading a prebuilt shipment.
-      Mix.Task.run("compile")
+      # Load project dependencies when available, but allow standalone CLI use
+      # from a non-Mix build such as a Rebar3 project.
+      if Mix.Project.get(), do: Mix.Task.run("compile")
     else
       build_args = if options[:output], do: ["--output", options[:output]], else: []
       Mix.Task.run("midgard.build", build_args)

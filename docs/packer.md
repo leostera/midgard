@@ -2,7 +2,7 @@
 
 Packer turns your compiled Elixir, Erlang, or Gleam worker into an inspectable `<app>.midgard/` artifact: the worker entrypoint, original BEAM names, compiled dependencies, and checksums together in one handoff. Use it to see exactly what a future libbeam Isolate host would need to admit. **Packaging is available across these languages; the Midgard request-handling API is Elixir-only for now.**
 
-You need Elixir 1.19 and OTP 27+ for the tooling, plus rebar3 or Gleam for those project types. Run these commands from the Midgard checkout unless you have installed the CLI in another project.
+You need Elixir 1.19 and OTP 27+ for the shared Packer/deploy archives, plus rebar3 or Gleam for those project types. Run these commands from the Midgard checkout unless you have installed the CLI in another project.
 
 ## Build
 
@@ -19,12 +19,16 @@ Alternatively, set `[entry: HelloWorker, target: :libbeam]` in `midgard.config.e
 
 ### Standalone rebar3
 
+The `rebar3_midgard` plugin adds native Rebar3 tasks. Configure it and the worker entrypoint in `rebar.config`, then run:
+
 ```sh
-mix packer.pack --project /path/to/app --entry erlang_worker \
-  --function handle --protocol raw.bytes.v1 --rebar3 /path/to/rebar3
+rebar3 midgard pack
+rebar3 midgard deploy
 ```
 
-`--rebar3` is optional if `rebar3` is on your PATH. One application per project is supported; rebar3 umbrellas are not. Compiled checkout dependencies are included, but their versions are not lockfile-pinned. See the [Erlang worker example](../examples/erlang_worker/README.md).
+The provider runs Rebar3's normal compile task and passes the compiled project to the shared Packer. The current plugin delegates artifact creation and deployment to the Packer and CLI Mix archives, so Elixir/Mix is also required. One application per project is supported; rebar3 umbrellas are not. Compiled checkout dependencies are included, but their versions are not lockfile-pinned. See the [Erlang worker example](../examples/erlang_worker/README.md).
+
+The lower-level `mix packer.pack --project DIR --entry MODULE --function NAME --protocol ID` remains available for scripted builds.
 
 ### Erlang-target Gleam
 
@@ -33,7 +37,7 @@ mix packer.pack --project /path/to/app --gleam --entry amber_worker \
   --function handle --protocol raw.bytes.v1
 ```
 
-Use `--gleam-bin PATH` to choose a compiler. Check in `manifest.toml`; the production Erlang shipment's `.app` lists determine which dependency BEAMs are included. A generated CLI launcher is excluded, but declared dependencies are not. Gleam supplies its own binary entrypoint; this does not import the Elixir worker API. See the [Gleam example](../examples/gleam_worker/README.md).
+Use `--gleam-bin PATH` to choose a compiler. Check in `manifest.toml`; the production Erlang shipment's `.app` lists determine which dependency BEAMs are included. A generated CLI launcher is excluded, but declared dependencies are not. Gleam supplies its own binary entrypoint; this does not import the Elixir worker API. Gleam currently has no documented third-party task-provider interface; a Gleam-specific Midgard external command is under investigation. See the [Gleam example](../examples/gleam_worker/README.md).
 
 All three commands write `<app>.midgard/` by default; pass `--output DIR` to choose a destination. The artifact has a `manifest.json` and `modules/` directory. Mix/rebar3 use artifact format v1; Gleam uses v2.
 
@@ -48,4 +52,4 @@ Inspection checks the manifest, checksums, BEAM identities, dependency ownership
 
 ## Before running a worker
 
-Build only sources and dependencies you trust: local compilation executes build scripts and macros with your developer privileges. Packer rejects known direct host-authority imports, NIF loading, `on_load`, and obvious native inputs, but cannot certify dynamic behavior or provide a security sandbox. An Isolate host must recheck and admit the full shipment before execution. Midgard does not deploy or run artifacts yet. [RFD0002](rfds/RFD0002-artifact-and-worker-contract.md) records the format and verifier invariants.
+Build only sources and dependencies you trust: local compilation executes build scripts and macros with your developer privileges. Packer rejects known direct host-authority imports, NIF loading, `on_load`, and obvious native inputs, but cannot certify dynamic behavior or provide a security sandbox. Packer only writes artifacts; `mix midgard.deploy` uploads them, and the runtime host independently verifies and admits the full shipment before execution. A successful build or static profile is not proof that a worker will execute. [RFD0002](rfds/RFD0002-artifact-and-worker-contract.md) records the format and verifier invariants.

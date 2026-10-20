@@ -7,7 +7,7 @@ defmodule Mix.Tasks.Packer.Pack do
   or a single-app rebar3 project with `--project DIR`, or a Gleam Erlang
   project with `--project DIR --gleam`. Non-Mix builds require an entry module,
   binary arity-one `--function` and versioned `--protocol`;
-  `--rebar3 PATH` or `--gleam-bin PATH` selects a local executable. `--output DIR` overrides the
+  `--rebar3 PATH` or `--gleam-bin PATH` selects a local executable. `--skip-compile` packages an already compiled rebar3 project. `--output DIR` overrides the
   default output. This trusted-local command never deploys or invokes libbeam.
   """
 
@@ -23,20 +23,24 @@ defmodule Mix.Tasks.Packer.Pack do
           project: :string,
           rebar3: :string,
           gleam: :boolean,
-          gleam_bin: :string
+          gleam_bin: :string,
+          skip_compile: :boolean
         ]
       )
 
     if positional != [] or invalid != [],
       do:
         Mix.raise(
-          "Usage: mix packer.pack [--project DIR] [--gleam] --entry MODULE [--function NAME] [--protocol ID] [--rebar3 PATH | --gleam-bin PATH] [--output DIR]"
+          "Usage: mix packer.pack [--project DIR] [--gleam] --entry MODULE [--function NAME] [--protocol ID] [--rebar3 PATH | --gleam-bin PATH] [--skip-compile] [--output DIR]"
         )
 
     if (options[:gleam] == true and is_nil(options[:project])) or
          (options[:gleam] == true and not is_nil(options[:rebar3])) or
-         (not is_nil(options[:gleam_bin]) and options[:gleam] != true) do
-      Mix.raise("--gleam requires --project and cannot be combined with --rebar3")
+         (not is_nil(options[:gleam_bin]) and options[:gleam] != true) or
+         (options[:skip_compile] == true and (is_nil(options[:project]) or options[:gleam])) do
+      Mix.raise(
+        "--gleam requires --project and cannot be combined with --rebar3; --skip-compile requires a non-Gleam --project"
+      )
     end
 
     unless options[:project], do: Mix.Task.run("compile")
@@ -51,6 +55,7 @@ defmodule Mix.Tasks.Packer.Pack do
         rebar3: options[:rebar3],
         gleam: options[:gleam],
         gleam_bin: options[:gleam_bin],
+        skip_compile: options[:skip_compile],
         output: options[:output]
       ]
       |> Enum.reject(fn {_key, value} -> is_nil(value) end)

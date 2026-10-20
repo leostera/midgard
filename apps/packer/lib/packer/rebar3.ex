@@ -14,8 +14,8 @@ defmodule Packer.Rebar3 do
     with :ok <- validate_options(root, entry, opts),
          root = Path.expand(root),
          {:ok, app} <- project_app(root),
-         {:ok, executable} <- find_rebar3(opts[:rebar3]),
-         :ok <- compile(root, executable),
+         {:ok, executable} <- rebar3_executable(opts),
+         :ok <- maybe_compile(root, executable, opts),
          {:ok, applications} <- collect_applications(root, app) do
       local = Enum.find(applications, &(&1.app == app))
       dependencies = Enum.reject(applications, &(&1.app == app))
@@ -45,6 +45,7 @@ defmodule Packer.Rebar3 do
          is_binary(opts[:function]) and opts[:function] != "" and
          is_binary(opts[:protocol]) and opts[:protocol] != "" and
          (is_nil(opts[:output]) or is_binary(opts[:output])) and
+         (is_nil(opts[:skip_compile]) or is_boolean(opts[:skip_compile])) and
          not String.contains?(root, <<0>>) do
       :ok
     else
@@ -69,6 +70,14 @@ defmodule Packer.Rebar3 do
         {:error,
          "expected one rebar.config and one src/<app>.app.src; rebar3 umbrellas are not supported"}
     end
+  end
+
+  defp rebar3_executable(opts) do
+    if Keyword.get(opts, :skip_compile), do: {:ok, nil}, else: find_rebar3(opts[:rebar3])
+  end
+
+  defp maybe_compile(root, executable, opts) do
+    if Keyword.get(opts, :skip_compile), do: :ok, else: compile(root, executable)
   end
 
   defp find_rebar3(nil) do
@@ -104,7 +113,11 @@ defmodule Packer.Rebar3 do
       Path.wildcard(Path.join(root, "_build/default/lib/*")) ++
         Path.wildcard(Path.join(root, "_build/default/checkouts/*"))
 
-    directories = Enum.filter(directories, &File.dir?/1)
+    plugin_apps = plugin_apps(root)
+
+    directories =
+      Enum.filter(directories, &application_directory?/1)
+      |> Enum.reject(&(Path.basename(&1) in plugin_apps))
 
     with true <- Enum.any?(directories, &(Path.basename(&1) == primary)),
          {:ok, applications} <- read_applications(directories),
@@ -113,6 +126,28 @@ defmodule Packer.Rebar3 do
       {:ok, applications}
     else
       _ -> {:error, "compiled rebar3 application or dependency metadata is missing or ambiguous"}
+    end
+  end
+
+  defp application_directory?(directory) do
+    app = Path.basename(directory)
+
+    String.match?(app, @app_pattern) and
+      File.regular?(Path.join([directory, "ebin", "#{app}.app"]))
+  end
+
+  defp plugin_apps(root) do
+    case :file.consult(String.to_charlist(Path.join(root, "rebar.config"))) do
+      {:ok, config} ->
+        [:plugins, :project_plugins]
+        |> Enum.flat_map(fn key -> Keyword.get(config, key, []) end)
+        |> Enum.map(fn
+          {app, _source} -> Atom.to_string(app)
+          app when is_atom(app) -> Atom.to_string(app)
+        end)
+
+      _ ->
+        []
     end
   end
 
