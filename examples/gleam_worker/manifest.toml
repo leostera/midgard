@@ -7,8 +7,8 @@
 # You should check this file into your source control repository.
 
 packages = [
-  { name = "amber_helper", version = "0.2.0", build_tools = ["gleam"], requirements = [], source = "local", path = "vendor/amber_helper" },
+  { name = "midgard", version = "0.1.0", build_tools = ["gleam"], requirements = [], source = "local", path = "../../packages/gleam" },
 ]
 
 [requirements]
-amber_helper = { path = "vendor/amber_helper" }
+midgard = { path = "../../packages/gleam" }

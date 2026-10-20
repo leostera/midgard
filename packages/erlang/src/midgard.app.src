@@ -1,0 +1,5 @@
+{application, midgard,
+ [{description, "Midgard helpers for Erlang workers"},
+  {vsn, "0.1.0"},
+  {modules, [midgard]},
+  {applications, [kernel, stdlib]}]}.

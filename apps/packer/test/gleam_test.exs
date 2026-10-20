@@ -10,7 +10,7 @@ defmodule Packer.GleamTest do
     protocol: "midgard.bytes.v1"
   ]
 
-  test "production Gleam shipment preserves exact names and locked dependency ownership" do
+  test "production Gleam shipment preserves exact names and locked Midgard dependency ownership" do
     if gleam = System.find_executable("gleam") do
       output =
         Path.join(
@@ -32,10 +32,10 @@ defmodule Packer.GleamTest do
                  "protocol" => "midgard.bytes.v1"
                }
 
-        assert Enum.map(manifest["modules"], & &1["name"]) == ["amber_helper", "amber_worker"]
+        assert Enum.map(manifest["modules"], & &1["name"]) == ["midgard", "amber_worker"]
 
         assert manifest["dependencies"] == [
-                 %{"app" => "amber_helper", "version" => "0.2.0", "modules" => ["amber_helper"]}
+                 %{"app" => "midgard", "version" => "0.1.0", "modules" => ["midgard"]}
                ]
 
         assert {:ok, %{"execution" => "not_verified"}} = Packer.Profile.report(output)
@@ -69,29 +69,40 @@ defmodule Packer.GleamTest do
   end
 
   test "rejects native sources and missing lock before compilation" do
-    root = Path.join(System.tmp_dir!(), "gleam-safety-#{System.unique_integer([:positive])}")
-    File.mkdir_p!(root)
+    workspace =
+      Path.join(System.tmp_dir!(), "gleam-safety-#{System.unique_integer([:positive])}")
 
-    try do
-      File.cp_r!(@project, root)
-      File.mkdir_p!(Path.join(root, "vendor/amber_helper/c_src"))
-      assert {:error, reason} = Packer.pack(Keyword.put(@options, :project, root))
-      assert reason =~ "native code"
-      File.rm_rf!(Path.join(root, "vendor/amber_helper/c_src"))
-      File.rm!(Path.join(root, "manifest.toml"))
-      assert {:error, reason} = Packer.pack(Keyword.put(@options, :project, root))
-      assert reason =~ "manifest.toml"
-      File.cp!(Path.join(@project, "manifest.toml"), Path.join(root, "manifest.toml"))
+    project = Path.join(workspace, "examples/gleam_worker")
+    library = Path.join(workspace, "packages/gleam")
+    if System.find_executable("gleam") do
+      File.mkdir_p!(Path.dirname(project))
+      File.mkdir_p!(Path.dirname(library))
 
-      File.write!(
-        Path.join(root, "gleam.toml"),
-        "target = \"javascript\"\n" <> File.read!(Path.join(root, "gleam.toml"))
-      )
+      try do
+        File.cp_r!(@project, project)
+        File.cp_r!(Path.expand("../../../packages/gleam", __DIR__), library)
+        File.mkdir_p!(Path.join(library, "c_src"))
+        assert {:error, reason} = Packer.pack(Keyword.put(@options, :project, project))
+        assert reason =~ "native code"
+        File.rm_rf!(Path.join(library, "c_src"))
+        File.rm!(Path.join(project, "manifest.toml"))
+        assert {:error, reason} = Packer.pack(Keyword.put(@options, :project, project))
+        assert reason =~ "manifest.toml"
+        File.cp!(Path.join(@project, "manifest.toml"), Path.join(project, "manifest.toml"))
 
-      assert {:error, reason} = Packer.pack(Keyword.put(@options, :project, root))
-      assert reason =~ "Erlang-target"
-    after
-      File.rm_rf!(root)
+        File.write!(
+          Path.join(project, "gleam.toml"),
+          "target = \"javascript\"\n" <> File.read!(Path.join(project, "gleam.toml"))
+        )
+
+        assert {:error, reason} = Packer.pack(Keyword.put(@options, :project, project))
+        assert reason =~ "Erlang-target"
+      after
+        File.rm_rf!(workspace)
+      end
+    else
+      assert {:error, reason} = Packer.pack(@options)
+      assert reason =~ "gleam executable not found"
     end
   end
 end

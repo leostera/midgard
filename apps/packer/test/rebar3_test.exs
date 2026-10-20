@@ -3,7 +3,7 @@ defmodule Packer.Rebar3Test do
 
   @project Path.expand("../../../examples/erlang_worker", __DIR__)
 
-  test "standalone rebar3 app and checkout dependency produce exact-name BEAMs" do
+  test "standalone rebar3 app and Midgard checkout produce exact-name BEAMs" do
     options = [
       project: @project,
       entry: "erlang_worker",
@@ -26,14 +26,14 @@ defmodule Packer.Rebar3Test do
         assert manifest["entrypoint"]["module"] == "erlang_worker"
         assert manifest["entrypoint"]["function"] == "handle"
         assert manifest["entrypoint"]["protocol"] == "midgard.bytes.v1"
-        assert Enum.map(manifest["modules"], & &1["name"]) == ["erlang_helper", "erlang_worker"]
+        assert Enum.map(manifest["modules"], & &1["name"]) == ["midgard", "erlang_worker"]
 
         assert manifest["dependencies"] ==
                  [
                    %{
-                     "app" => "erlang_helper",
-                     "modules" => ["erlang_helper"],
-                     "version" => "0.2.0"
+                     "app" => "midgard",
+                     "modules" => ["midgard"],
+                     "version" => "0.1.0"
                    }
                  ]
 

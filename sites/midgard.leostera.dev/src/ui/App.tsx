@@ -213,16 +213,17 @@ cd midgard
 mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force`,
     setupNote: "Requires Gleam and OTP 29. This uses the complete working example in examples/gleam_worker.",
     sourceTitle: "Handle a request",
-    source: `fn dispatch(method: BitArray, path: BitArray) -> BitArray {
+    source: `import midgard
+
+fn dispatch(method: BitArray, path: BitArray) -> BitArray {
   case method, path {
-    <<"GET":utf8>>, <<"/hello":utf8>> ->
-      amber_helper.response(200, amber_helper.hello(<<"world":utf8>>))
+    <<"GET":utf8>>, <<"/hello":utf8>> -> respond(200, hello(<<"world":utf8>>))
     <<"GET":utf8>>, <<"/hello/":utf8, name:bits>> ->
       case name {
         <<>> -> not_found()
         _ ->
           case valid_name(name) {
-            True -> amber_helper.response(200, amber_helper.hello(name))
+            True -> respond(200, hello(name))
             False -> not_found()
           }
       }
@@ -239,11 +240,19 @@ fn valid_name(name: BitArray) -> Bool {
   }
 }
 
+fn hello(name: BitArray) -> BitArray {
+  <<"hello, ":utf8, name:bits, "!":utf8>>
+}
+
+fn respond(status: Int, body: BitArray) -> BitArray {
+  midgard.encode_response(midgard.Response(status: status, body: body))
+}
+
 fn not_found() -> BitArray {
-  amber_helper.response(404, <<"Not found\\n":utf8>>)
+  respond(404, <<"Not found\\n":utf8>>)
 }`,
     sourceFile: "examples/gleam_worker/src/amber_worker.gleam",
-    sourceNote: "Route excerpt; the complete file also frames midgard.bytes.v1 requests.",
+    sourceNote: "The worker owns request parsing, routing, and greeting content; Midgard encodes typed responses.",
     sourceUrl: "https://github.com/leostera/midgard/blob/main/examples/gleam_worker/src/amber_worker.gleam",
     buildTitle: "Build and publish",
     build: `(cd examples/gleam_worker && gleam build --target erlang)
@@ -260,19 +269,26 @@ cd midgard
 mix archive.install github leostera/midgard --app midgard_cli --sparse apps/midgard_cli --force`,
     setupNote: "Requires rebar3 and OTP 29. This uses the complete working example in examples/erlang_worker.",
     sourceTitle: "Route a request",
-    source: `route(<<"GET">>, <<"/hello">>) ->
-    reply(200, erlang_helper:hello(<<"world">>));
+    source: `-include_lib("midgard/include/midgard.hrl").
+
+route(<<"GET">>, <<"/hello">>) ->
+    reply(200, hello(<<"world">>));
 route(<<"GET">>, <<"/hello/", Name/binary>>) ->
     case valid_name(Name) of
-        true -> reply(200, erlang_helper:hello(Name));
+        true -> reply(200, hello(Name));
         false -> reply(404, <<"Not found\\n">>)
     end;
 route(_, _) -> reply(404, <<"Not found\\n">>).
 
 valid_name(<<>>) -> false;
-valid_name(Name) -> no_slash(Name).`,
+valid_name(Name) -> no_slash(Name).
+
+hello(Name) -> <<"hello, ", Name/binary, "!">>.
+
+reply(Status, Body) ->
+    midgard:encode_response(#midgard_response{status = Status, body = Body}).`,
     sourceFile: "examples/erlang_worker/src/erlang_worker.erl",
-    sourceNote: "Route excerpt; the complete file also frames midgard.bytes.v1 requests.",
+    sourceNote: "The worker owns routing and greeting content; Midgard encodes the typed response frame.",
     sourceUrl: "https://github.com/leostera/midgard/blob/main/examples/erlang_worker/src/erlang_worker.erl",
     buildTitle: "Build and publish",
     build: `(cd examples/erlang_worker && rebar3 eunit)

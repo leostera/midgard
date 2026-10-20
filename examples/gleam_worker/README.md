@@ -1,6 +1,6 @@
 # Gleam HTTP-shaped worker
 
-This Erlang-target Gleam package has a locked, local production dependency. Its binary `amber_worker.handle/1` parses the same `midgard.bytes.v1` request envelope used by the Elixir SDK and returns the same status/body response envelope. It serves `GET /hello` and `GET /hello/:name`; other routes return 404. The worker runs in libbeam, not an Erlang web server.
+This Erlang-target Gleam package depends on the Midgard Gleam framework library in `packages/gleam` through a local path dependency. Its binary `amber_worker.handle/1` parses the `midgard.bytes.v1` request envelope, handles routes, and creates greeting bodies. `midgard.encode_response` encodes a framework `midgard.Response` value. It serves `GET /hello` and `GET /hello/:name`; other routes return 404. The worker runs in libbeam, not an Erlang web server.
 
 ```sh
 # From the Midgard repository root:

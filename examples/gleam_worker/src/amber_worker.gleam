@@ -1,6 +1,5 @@
-import amber_helper
+import midgard
 
-// The same midgard.bytes.v1 HTTP-shaped request/response envelope as Elixir.
 // The host frames requests; this Isolate only receives and returns BitArrays.
 pub fn handle(input: BitArray) -> BitArray {
   case input {
@@ -22,13 +21,13 @@ pub fn handle(input: BitArray) -> BitArray {
         >> -> {
           case has_body(headers_and_body, header_count, body_size) {
             True -> dispatch(method, path)
-            False -> amber_helper.response(400, <<"worker error\n":utf8>>)
+            False -> response(400, <<"worker error\n":utf8>>)
           }
         }
-        _ -> amber_helper.response(400, <<"worker error\n":utf8>>)
+        _ -> response(400, <<"worker error\n":utf8>>)
       }
     }
-    _ -> amber_helper.response(400, <<"worker error\n":utf8>>)
+    _ -> response(400, <<"worker error\n":utf8>>)
   }
 }
 
@@ -55,14 +54,13 @@ fn has_body(bytes: BitArray, count: Int, body_size: Int) -> Bool {
 
 fn dispatch(method: BitArray, path: BitArray) -> BitArray {
   case method, path {
-    <<"GET":utf8>>, <<"/hello":utf8>> ->
-      amber_helper.response(200, amber_helper.hello(<<"world":utf8>>))
+    <<"GET":utf8>>, <<"/hello":utf8>> -> response(200, hello(<<"world":utf8>>))
     <<"GET":utf8>>, <<"/hello/":utf8, name:bits>> ->
       case name {
         <<>> -> not_found()
         _ ->
           case valid_name(name) {
-            True -> amber_helper.response(200, amber_helper.hello(name))
+            True -> response(200, hello(name))
             False -> not_found()
           }
       }
@@ -79,6 +77,14 @@ fn valid_name(name: BitArray) -> Bool {
   }
 }
 
+fn hello(name: BitArray) -> BitArray {
+  <<"hello, ":utf8, name:bits, "!":utf8>>
+}
+
+fn response(status: Int, body: BitArray) -> BitArray {
+  midgard.encode_response(midgard.Response(status: status, body: body))
+}
+
 fn not_found() -> BitArray {
-  amber_helper.response(404, <<"Not found\n":utf8>>)
+  response(404, <<"Not found\n":utf8>>)
 }

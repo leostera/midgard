@@ -2,4 +2,4 @@ name = "amber_worker"
 version = "0.1.0"
 
 [dependencies]
-amber_helper = { path = "vendor/amber_helper" }
+midgard = { path = "../../packages/gleam" }

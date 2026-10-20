@@ -1,6 +1,6 @@
 # Erlang HTTP-shaped worker
 
-A standalone rebar3 application (`erlang_worker`) calls its pure-Erlang checkout dependency (`erlang_helper`). Its binary `handle/1` parses the same `midgard.bytes.v1` request envelope used by the Elixir SDK and returns the same status/body response envelope. It serves `GET /hello` and `GET /hello/:name`; other routes return 404. The worker runs in libbeam, not an Erlang web server.
+A standalone rebar3 application (`erlang_worker`) uses the Midgard Erlang framework library from `packages/erlang`, checked out locally as `_checkouts/midgard`. The worker's binary `handle/1` parses the `midgard.bytes.v1` request envelope, handles routes, and creates greeting bodies. `midgard:encode_response/1` encodes a `#midgard_response{}` framework value. It serves `GET /hello` and `GET /hello/:name`; other routes return 404. The worker runs in libbeam, not an Erlang web server.
 
 Requires rebar3. For a temporary installation, run `MIX_HOME=/tmp/midgard-rebar mix local.rebar --force` and use the installed executable under `/tmp/midgard-rebar/elixir/<elixir-otp>/rebar3`.
 

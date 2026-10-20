@@ -1,6 +1,6 @@
 # Erlang workers
 
-Bring your Erlang worker to Midgard through a mixed Mix project or a standalone rebar3 application. Packer collects its compiled BEAMs and dependencies into a versioned artifact, preserving their original module names. Write a binary entrypoint in Erlang, or call Erlang modules from an Elixir `Midgard.Worker` handler. We are designing the worker framework for Elixir first; standalone Erlang packaging does not depend on adopting that API.
+Bring your Erlang worker to Midgard through a mixed Mix project or a standalone rebar3 application. Packer collects its compiled BEAMs and dependencies into a versioned artifact, preserving their original module names. Write a binary entrypoint in Erlang, or call Erlang modules from an Elixir `Midgard.Worker` handler. The Midgard Erlang library provides framework-level response types and `midgard.bytes.v1` encoding; route matching and response content stay in your Erlang worker.
 
 ## Mixed Mix projects
 
@@ -16,7 +16,7 @@ mix packer.pack --project examples/erlang_worker --entry erlang_worker \
 mix packer.inspect examples/erlang_worker/erlang_worker.midgard
 ```
 
-Export the named arity-one function to accept and return bounded binaries. The [fixture](../examples/erlang_worker/README.md) parses the HTTP-shaped `midgard.bytes.v1` wire format and implements `GET /hello` and `GET /hello/:name`, just like an Elixir SDK worker. Packer reads compiled `.app` metadata to collect one application and its dependencies. Checkout dependency versions are recorded but not lockfile-pinned.
+Export the named arity-one function to accept and return bounded binaries. The [fixture](../examples/erlang_worker/README.md) parses the HTTP-shaped `midgard.bytes.v1` wire format, uses the Midgard response type, and implements `GET /hello` and `GET /hello/:name` in application code. Packer reads compiled `.app` metadata to collect one application and its dependencies. Checkout dependency versions are recorded but not lockfile-pinned.
 
 ## Runtime status
 

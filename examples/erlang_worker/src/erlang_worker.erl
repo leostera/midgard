@@ -1,4 +1,5 @@
 -module(erlang_worker).
+-include_lib("midgard/include/midgard.hrl").
 -export([handle/1]).
 
 %% midgard.bytes.v1: the same bounded request/response envelope as Midgard.Worker.
@@ -24,10 +25,10 @@ skip_headers(Count, <<NameSize:8, ValueSize:16, _Name:NameSize/binary,
     skip_headers(Count - 1, Rest);
 skip_headers(_, _) -> error.
 
-route(<<"GET">>, <<"/hello">>) -> reply(200, erlang_helper:hello(<<"world">>));
+route(<<"GET">>, <<"/hello">>) -> reply(200, hello(<<"world">>));
 route(<<"GET">>, <<"/hello/", Name/binary>>) ->
     case valid_name(Name) of
-        true -> reply(200, erlang_helper:hello(Name));
+        true -> reply(200, hello(Name));
         false -> reply(404, <<"Not found\n">>)
     end;
 route(_, _) -> reply(404, <<"Not found\n">>).
@@ -39,4 +40,7 @@ no_slash(<<>>) -> true;
 no_slash(<<"/", _/binary>>) -> false;
 no_slash(<<_, Rest/binary>>) -> no_slash(Rest).
 
-reply(Status, Body) -> <<2, Status:16, (byte_size(Body)):16, Body/binary>>.
+hello(Name) -> <<"hello, ", Name/binary, "!">>.
+
+reply(Status, Body) ->
+    midgard:encode_response(#midgard_response{status = Status, body = Body}).
