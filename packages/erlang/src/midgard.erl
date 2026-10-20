@@ -1,8 +1,9 @@
 -module(midgard).
 -include("midgard.hrl").
 -export([encode_response/1]).
--export_type([response/0]).
+-export_type([request/0, response/0]).
 
+-type request() :: #midgard_request{}.
 -type response() :: #midgard_response{}.
 
 %% Encode a framework response as a midgard.bytes.v1 binary frame.

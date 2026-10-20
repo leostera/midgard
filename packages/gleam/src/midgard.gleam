@@ -1,3 +1,14 @@
+/// A framework request passed to a worker handler.
+pub type Request {
+  Request(
+    method: BitArray,
+    path: BitArray,
+    query_string: BitArray,
+    headers: List(#(BitArray, BitArray)),
+    body: BitArray,
+  )
+}
+
 /// A framework response returned by a worker handler.
 pub type Response {
   Response(status: Int, body: BitArray)
