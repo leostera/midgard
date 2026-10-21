@@ -142,6 +142,15 @@ export class NativeRuntime extends DurableObject<Env> {
 		// A DO eviction must not discard healthy, already-admitted Isolates. The
 		// host proves the full live digest set; missing or stale handles still
 		// require a fresh Container and exact shipment re-admission.
+		// Durable Object containers have no rollouts: a running container keeps
+		// its image across Worker deploys. Replace it when the configured image
+		// changed (or was never recorded), so a new runtime image takes effect.
+		const image = container.images.server;
+		const startedImage = sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = 'runtime_image'").toArray()[0]?.value;
+		if (container.running && startedImage !== image) {
+			console.log(JSON.stringify({ event: "restore_image_changed", from: startedImage ?? null, to: image }));
+			await container.destroy();
+		}
 		if (container.running) {
 			if (await this.matchesRunningHost(saved)) {
 				await this.reconcileWorkerDomains(saved);
@@ -150,8 +159,9 @@ export class NativeRuntime extends DurableObject<Env> {
 			}
 			await container.destroy();
 		}
+		sql.exec("INSERT INTO settings (key, value) VALUES ('runtime_image', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value", image);
 		container.start({
-			image: container.images.server,
+			image,
 			instance: "standard-2",
 			enableInternet: false,
 			env: { MIDGARD_CONTAINER_HTTP: "1", MIDGARD_INTERNAL_UPLOAD_KEY: this.gateway() },

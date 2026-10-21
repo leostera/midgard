@@ -234,6 +234,31 @@ test("a DO restart reuses only the exact admitted digest set in a surviving Cont
 	container.running = false;
 });
 
+test("a DO restart replaces a surviving Container running a different runtime image", async () => {
+	const { ctx, container, admitted, starts, destroys } = runtimeHarness();
+	const runtime = new NativeRuntime(ctx, env);
+	await runtime.fetch(new Request("https://midgard.leostera.dev/api/deployments/ready"));
+	const upload = await runtime.fetch(new Request("https://midgard.leostera.dev/api/deployments/hello", {
+		method: "POST", headers: { "content-type": "application/vnd.midgard.shipment.v1" }, body: new Uint8Array([0, 1]),
+	}));
+	const { slug } = await upload.json() as { slug: string };
+	expect([starts(), destroys()]).toEqual([1, 0]);
+
+	// A Worker deploy with a new image: the surviving Container is replaced
+	// and its shipments re-admitted, even though its digests still match.
+	container.images = { server: "midgard-runtime@sha256:next" };
+	const upgraded = new NativeRuntime(ctx, env);
+	expect((await upgraded.fetch(new Request("https://midgard.leostera.dev/"))).status).toBe(200);
+	expect([starts(), destroys()]).toEqual([2, 1]);
+	expect(admitted.get(slug)).toBe("a".repeat(64));
+
+	// The new image is recorded, so the next DO restart reuses it.
+	const again = new NativeRuntime(ctx, env);
+	expect((await again.fetch(new Request("https://midgard.leostera.dev/"))).status).toBe(200);
+	expect([starts(), destroys()]).toEqual([2, 1]);
+	container.running = false;
+});
+
 test("anonymous uploads receive immutable routes and recover exact stored bytes", async () => {
 	domainRequests.length = 0;
 	attachedDomains.clear();
