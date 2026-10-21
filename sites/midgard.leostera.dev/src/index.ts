@@ -19,6 +19,11 @@ const retiredWorkers = new Set([
 	// Release smoke tests.
 	"hello_erlang_bb2b5867717f92c3", "hello_worker_0a6c12c4cf294489", "hello_worker_936519a46c139dc6",
 	"hello_worker_a449b4ee524edc38", "hello_worker_ex_064d5579c9f280da", "hello_worker_gleam_586d4ee1a5a33c49",
+	// Deploy-time measurements (scripts/measure-deploy.sh) and chunk-stripping experiments.
+	"elixir_worker_11d0a8f8d10caabf", "elixir_worker_324ba6f159faeee0", "elixir_worker_357a163b4623ad5e",
+	"elixir_worker_5d293b71d46fda79", "elixir_worker_a6393783095469c2", "elixir_worker_d153b5fae8c5d163",
+	"erlang_worker_21c8b4dcda9b98e3", "erlang_worker_31351afe10e698b4", "erlang_worker_68ac9fce8a89e69d",
+	"gleam_worker_08ded87ff8d0bd2c", "gleam_worker_0e7a2227d3e4b6f6", "gleam_worker_e4013c127b4409d8",
 ]);
 const chunkSize = 256_000;
 // Renew the ten-minute idle period for both newly started and surviving
