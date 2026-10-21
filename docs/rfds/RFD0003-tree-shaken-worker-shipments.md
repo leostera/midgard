@@ -1,7 +1,7 @@
 # RFD0003 - Tree-shaken worker shipments
 
 - Feature Name: `midgard-tree-shaking`
-- Status: Draft (prototype validated)
+- Status: Implemented in Packer 0.4.0 (Elixir workers)
 - Author: Leandro Ostera
 - Start Date: 2026-10-21
 - Updated: 2026-10-21
@@ -120,6 +120,17 @@ The entrypoint is the only root libbeam needs: it calls the entrypoint and nothi
 | Total | 4.5–25 s, typically ~9 s (12-core laptop, noisy) |
 
 A first implementation passed the whole index into every compile task and took 75–128 s; giving each task only its own module brought the rebuild phase down to 2 s. Indexing and rebuilding the standard library depend only on the toolchain and the kept function set, so they cache well across workers and builds.
+
+## Implementation status
+
+Implemented in `Packer.Shake` and `Packer.RuntimeClosure` (Packer 0.4.0), and used by `mix midgard.build` and `mix midgard.deploy` by default. Differences from the design below:
+
+- **Artifact format stays v1.** Shaken modules are still exact-name BEAMs with correct sizes and hashes, so the existing schema and the live platform accept them unchanged. `original_sha256` and the `shaking` manifest object are deferred; the build prints the shaking summary instead.
+- **Opaque modules.** A module without debug info is kept whole (stripped), and any reachable export of it reaches all of its imports and module atoms.
+- **`mix packer.verify` is not implemented yet.** `apps/packer/test/shake_test.exs` runs the same check in a `:peer` node: it shakes a real Elixir closure, loads the shaken modules over a booted `:elixir`, and compares results with the originals.
+- **Rebar3 and Gleam are unchanged.** Their shipments are already small.
+
+Measured with the implementation on the generated Elixir worker: 414 → 177 modules (the closure now includes protocol implementations) and 18.8 MB → 1.5 MB; libbeam admitted it in 8.3 s, and its responses matched. A stress worker with protocol implementations, uploaded once more deliberately, was admitted in 9.5 s without the platform restarting; its `inspect`, `Enum` over maps, interpolation, `String` and `URI` routes still fail on libbeam, as they do unshaken, so those are libbeam gaps rather than shipment problems.
 
 ## Guide-level explanation
 

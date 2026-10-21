@@ -22,6 +22,22 @@ mix packer.pack
 
 Alternatively, set `[entry: HelloWorker, target: :libbeam]` in `midgard.config.exs` and run `mix midgard.build`. Mix's compiled `lib/**/*.ex`, `src/**/*.erl`, and runtime dependencies are included. You can override a generic binary entrypoint with `--function NAME --protocol ID`.
 
+#### Tree shaking
+
+`mix midgard.build` and `mix midgard.deploy` ship only the functions your worker can reach. Packer walks the call graph from the entrypoint through your code, Elixir and OTP, rebuilds each module with only the reachable functions, and drops the rest. A generated Elixir worker goes from about 400 modules and 19 MB to about 180 modules and 1.5 MB:
+
+```text
+Shaken: 414 → 177 modules, 23249 → 3510 functions, 18.8 MB → 1.5 MB
+```
+
+Dynamic calls are followed when a literal narrows the target: protocol dispatch, `apply/3` with a literal module or function, and modules named by atoms in reachable code. If your worker calls modules it computes at runtime, keep them explicitly in `mix.exs`:
+
+```elixir
+packer: [entry: MyWorker, keep: [MyWorker.Plugin, {MyWorker.Jobs, :run, 1}]]
+```
+
+A function Packer wrongly removed fails with `UndefinedFunctionError` when called. Pass `--no-shake` to `mix midgard.build` or `mix midgard.deploy` to ship the whole closure instead. Rebuilt modules are cached in your user cache directory (`midgard_packer`), so later builds are faster. See [RFD0003](rfds/RFD0003-tree-shaken-worker-shipments.md) for how it works.
+
 ### Standalone rebar3
 
 The `rebar3_midgard` plugin adds native Rebar3 tasks. Configure it and the worker entrypoint in `rebar.config`, then run:

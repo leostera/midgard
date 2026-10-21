@@ -166,7 +166,7 @@ All packages are published on Hex under the MIT license:
 
 ## How deployment works
 
-`mix midgard.deploy` builds the worker's complete BEAM dependency closure on your machine and uploads it through a rate-limited edge Worker. The platform verifies the manifest and checksums, admits the whole group to libbeam, and only then gives it a public URL. The edge stores the exact shipment and re-verifies and re-admits it after a restart. There is no server-side compilation. `mix packer.inspect --target current-core` is a conservative static check, not proof that a worker will run.
+`mix midgard.deploy` builds the worker's BEAM dependency closure on your machine, [tree-shakes](docs/packer.md#tree-shaking) it down to the functions the worker can reach, and uploads it through a rate-limited edge Worker. The platform verifies the manifest and checksums, admits the whole group to libbeam, and only then gives it a public URL. The edge stores the exact shipment and re-verifies and re-admits it after a restart. There is no server-side compilation. `mix packer.inspect --target current-core` is a conservative static check, not proof that a worker will run.
 
 ## License
 

@@ -34,6 +34,10 @@ Install the v0.3.0 archive from Hex:
 mix archive.install hex midgard_packer --force
 ```
 
+## Tree shaking
+
+When packing an Elixir worker's runtime closure (`mix midgard.build` / `deploy`), Packer ships only the functions reachable from the entrypoint: a generated worker goes from about 19 MB to 1.5 MB. Add modules or functions your worker calls dynamically with `packer: [keep: [...]]`, or pass `--no-shake` to ship everything. See the [Packer guide](https://github.com/leostera/midgard/blob/main/docs/packer.md#tree-shaking).
+
 ## What inspection means
 
 Packer validates package structure without loading worker modules. Its compatibility report is a static diagnostic, not proof that a particular worker will execute successfully on a host. Packer does not run workers or provide the deployment command; use the Midgard CLI or a language-specific plugin for that.
