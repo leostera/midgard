@@ -12,6 +12,14 @@ uploads the image as a one-day artifact. Download it with `gh run download`,
 load it with `docker load`, then publish it with `cf containers push` before
 updating the edge image's pinned base digest.
 
+For overlay-only changes (`apps/midgard_platform`, Packer), build
+`edge-http/build-image.sh` locally, `cf containers push -t midgard-http:<tag>`,
+and point `sites/midgard.leostera.dev/cloudflare.config.ts` at the pushed
+digest. Durable Object containers have no rollouts: after the site deploy,
+the platform notices the changed image on its next restore, replaces the
+running container, and re-admits every stored shipment. Expect about a minute
+before `cf containers applications instances list` shows the new image.
+
 ```sh
 LIBBEAM_SOURCE=/path/to/leostera/libbeam \
 ELIXIR_SOURCE=/path/to/elixir \
