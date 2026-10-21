@@ -116,11 +116,11 @@ cmd_check() {
   done
   (cd packages/gleam && gleam export hex-tarball >/dev/null)
   cp "packages/gleam/build/midgard_gleam-$version.tar" "$out/"
+  local metadata
   for tarball in "$out"/*.tar; do
-    tar -xOf "$tarball" metadata.config | grep -q "\"$version\"" ||
-      die "$(basename "$tarball") does not declare version $version"
-    tar -xOf "$tarball" metadata.config | grep -q 'README.md' ||
-      die "$(basename "$tarball") is missing README.md"
+    metadata="$(tar -xOf "$tarball" metadata.config)"
+    [[ "$metadata" == *"\"$version\""* ]] || die "$(basename "$tarball") does not declare version $version"
+    [[ "$metadata" == *README.md* ]] || die "$(basename "$tarball") is missing README.md"
   done
   rm -rf packages/gleam/build "$out"
   echo "All checks passed and all six tarballs build at $version."
@@ -137,10 +137,12 @@ cmd_publish() {
   git fetch -q origin
   [ "$(git rev-parse HEAD)" = "$(git rev-parse '@{upstream}')" ] || die "HEAD is not pushed to its upstream"
   # Both tools exit 0 when signed out, so read what they print instead.
-  local mix_user rebar3_user
-  mix_user="$(mix hex.user whoami 2>&1 | strip_ansi | grep -vE '^\s*$|notice|Failed|error|No authenticated' | tail -1 || true)"
-  [ -n "$mix_user" ] && ! mix hex.user whoami 2>&1 | grep -qE 'Failed to auth|auth_error|No authenticated' ||
+  local mix_whoami mix_user rebar3_user
+  mix_whoami="$(mix hex.user whoami 2>&1 | strip_ansi || true)"
+  mix_user="$(grep -vE '^\s*$|notice|Failed|error|No authenticated' <<< "$mix_whoami" | tail -1 || true)"
+  if [ -z "$mix_user" ] || grep -qE 'Failed to auth|auth_error|No authenticated' <<< "$mix_whoami"; then
     die "not signed in to Hex for Mix; run: mix hex.user auth"
+  fi
   rebar3_user="$(cd packages/rebar3_midgard && rebar3 hex user whoami 2>&1 | strip_ansi | awk '$1 == "hexpm" { print $2 }')"
   [ -n "$rebar3_user" ] || die "not signed in to Hex for Rebar3; run: rebar3 hex user auth"
   echo "Mix: $mix_user · Rebar3: $rebar3_user"
@@ -220,10 +222,13 @@ cmd_deploy_site() {
   (cd sites/midgard.leostera.dev && bun test >/dev/null && bun run typecheck >/dev/null && bun run deploy)
 
   step "Verifying the live site serves $version instructions"
-  local asset
-  asset="$(curl -fsS https://midgard.leostera.dev/ | sed -nE 's/.*src="(\/assets\/[^"]+\.js)".*/\1/p' | head -1)"
+  # Download first: under pipefail, `curl | grep -q` fails when grep exits early.
+  local page asset bundle
+  page="$(curl -fsS https://midgard.leostera.dev/)"
+  asset="$(sed -nE 's/.*src="(\/assets\/[^"]+\.js)".*/\1/p' <<< "$page" | head -1)"
   [ -n "$asset" ] || die "could not find the site bundle"
-  curl -fsS "https://midgard.leostera.dev$asset" | grep -q "midgard_gleam@$version" ||
+  bundle="$(curl -fsS "https://midgard.leostera.dev$asset")"
+  [[ "$bundle" == *"midgard_gleam@$version"* ]] ||
     die "live bundle $asset does not mention midgard_gleam@$version"
   echo "Live: https://midgard.leostera.dev ($asset)"
 }
