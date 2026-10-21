@@ -342,6 +342,60 @@ function Quickstart() {
   );
 }
 
+type TimingRow = { label: string; note?: string; values: [string, string, string] };
+
+// Measured 2026-10-21 with scripts/measure-deploy.sh and scripts/measure-container.sh.
+const midgardTimings: TimingRow[] = [
+  { label: "Deploy command", note: "build, upload, admission", values: ["4.2 s", "4.4 s", "75–90 s"] },
+  { label: "Until the new URL answers", note: "includes DNS for the new hostname", values: ["10.9 s", "10.1 s", "80–95 s"] },
+  { label: "Uploaded", values: ["7.7 KB", "6.0 KB", "17.9 MB"] },
+];
+
+const containerTimings: TimingRow[] = [
+  { label: "Image build", values: ["2.0 s", "1.7 s", "6.8 s"] },
+  { label: "docker run until first response", note: "median of 10, image already local", values: ["0.36 s", "0.46 s", "0.37 s"] },
+  { label: "Image size", note: "compressed", values: ["128 MB", "128 MB", "155 MB"] },
+];
+
+function TimingRows({ title, rows }: { title: string; rows: TimingRow[] }) {
+  return (
+    <tbody>
+      <tr className="timings-group"><th colSpan={4} scope="colgroup">{title}</th></tr>
+      {rows.map((row) => (
+        <tr key={row.label}>
+          <th scope="row">{row.label}{row.note && <small>{row.note}</small>}</th>
+          {row.values.map((value, index) => <td key={index}>{value}</td>)}
+        </tr>
+      ))}
+    </tbody>
+  );
+}
+
+function Timings() {
+  return (
+    <section className="limits-section" id="timings">
+      <div className="section-heading">
+        <h2>How long it takes</h2>
+        <p>The same hello-world worker in each language, deployed to this demo and booted in an ordinary container.</p>
+      </div>
+      <div>
+        <div className="timings-scroll">
+          <table className="timings-table">
+            <thead><tr><td /><th scope="col">Erlang</th><th scope="col">Gleam</th><th scope="col">Elixir</th></tr></thead>
+            <TimingRows title="Midgard, to this public demo" rows={midgardTimings} />
+            <TimingRows title="Container, same modules on erlang:29-slim" rows={containerTimings} />
+          </table>
+        </div>
+        <ul className="limits-list timings-notes">
+          <li><strong>Not the same measurement.</strong> Midgard’s numbers run from your terminal to a live public URL. The container numbers are local: they don’t include pushing a 128 MB image to a registry, pulling it onto a server, or routing to it.</li>
+          <li><strong>Why Elixir is slow.</strong> Its shipment carries all of Elixir and the OTP libraries it touches, 339 modules for a hello world. We’re working on <a href="https://github.com/leostera/midgard/blob/main/docs/rfds/RFD0003-tree-shaken-worker-shipments.md">shipping only the code a worker uses</a>.</li>
+          <li><strong>Measure it yourself.</strong> Measured on a laptop over a home connection. The scripts are <a href="https://github.com/leostera/midgard/tree/main/scripts">in the repository</a>.</li>
+        </ul>
+      </div>
+    </section>
+  );
+}
+
 function Limitations() {
   return (
     <section className="limits-section" id="limits">
@@ -376,6 +430,8 @@ function Landing() {
       </section>
 
       <Quickstart />
+
+      <Timings />
 
       <Limitations />
 

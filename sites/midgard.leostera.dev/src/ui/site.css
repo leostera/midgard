@@ -217,6 +217,38 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .limits-list strong { color: var(--text); }
 .limits-list code { font: 12px var(--mono); }
 .limits-list a { color: var(--accent-ink); text-decoration: underline; }
+.timings-scroll { overflow-x: auto; }
+.timings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.timings-table th, .timings-table td {
+  padding: 12px 0 12px 16px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  white-space: nowrap;
+}
+.timings-table thead th { color: var(--text); font-weight: 600; font-size: 13px; }
+.timings-table tbody th[scope="row"] {
+  padding-left: 0;
+  text-align: left;
+  font-weight: 500;
+  color: var(--text);
+  white-space: normal;
+}
+.timings-table tbody th small { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--muted); }
+.timings-table td { font: 13px var(--mono); color: var(--text); }
+.timings-group th {
+  padding: 26px 0 8px;
+  text-align: left;
+  font: 600 11px var(--mono);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.timings-notes { margin-top: 28px; }
 .inventory-preview { padding-top: 12px; padding-bottom: 86px; }
 .inventory-title {
   display: flex;
