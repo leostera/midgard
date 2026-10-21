@@ -1,8 +1,8 @@
 {"1.2.0",
-[{<<"midgard">>,{pkg,<<"midgard_erlang">>,<<"0.3.0">>},0}]}.
+[{<<"midgard">>,{pkg,<<"midgard_erlang">>,<<"0.4.0">>},0}]}.
 [
 {pkg_hash,[
- {<<"midgard">>, <<"DC5202A70A601FE7494728F9DBE95EC319CF0F489D3793C7AD42462FEDEB58A5">>}]},
+ {<<"midgard">>, <<"B0B9BC1AC0545FAB91A029C9CB25A4B8C9123BA143932EFF20F16D4408A77D0F">>}]},
 {pkg_hash_ext,[
- {<<"midgard">>, <<"EE2E6432AA6E13CFAC27D649FAABDA97D1D89CD5590F9861F04F04BD0BCE9F1D">>}]}
+ {<<"midgard">>, <<"96562D05B0CD2030B25482510E3916AB10C9766E53496E67B5881760EB665902">>}]}
 ].

@@ -7,8 +7,8 @@
 # You should check this file into your source control repository.
 
 packages = [
-  { name = "midgard_gleam", version = "0.4.0", build_tools = ["gleam"], requirements = [], source = "local", path = "../../packages/gleam" },
+  { name = "midgard_gleam", version = "0.4.0", build_tools = ["gleam"], requirements = [], otp_app = "midgard_gleam", source = "hex", outer_checksum = "42FFD6BDABB862388E8187D5D2022D130F4817318242F3743DDD9FCC534BE652" },
 ]
 
 [requirements]
-midgard_gleam = { path = "../../packages/gleam" }
+midgard_gleam = { version = "0.4.0" }
