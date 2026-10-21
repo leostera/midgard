@@ -24,6 +24,15 @@ const retiredWorkers = new Set([
 	"elixir_worker_5d293b71d46fda79", "elixir_worker_a6393783095469c2", "elixir_worker_d153b5fae8c5d163",
 	"erlang_worker_21c8b4dcda9b98e3", "erlang_worker_31351afe10e698b4", "erlang_worker_68ac9fce8a89e69d",
 	"gleam_worker_08ded87ff8d0bd2c", "gleam_worker_0e7a2227d3e4b6f6", "gleam_worker_e4013c127b4409d8",
+	// Tree-shaking prototype and stress tests, 0.4.0 measurements and smoke tests.
+	"elixir_worker_2dec591bcc37beb7", "elixir_worker_66d179fb81193a67", "elixir_worker_6bfa8746d0113f3d",
+	"elixir_worker_8469c9041283dbf9", "elixir_worker_daad16badc66386f", "elixir_worker_f9fcaf849f7594d9",
+	"erlang_worker_7633d2cd97872fac", "erlang_worker_976b28f840d91657", "erlang_worker_b1ad17f3da357f49",
+	"gleam_worker_28c06128f3b73dd8", "gleam_worker_7cbbaa588f56807d", "gleam_worker_e03e3b56e91e82fd",
+	"hello_shake_257404a3ab890346", "hello_worker_c319599abb7d4137", "hello_worker_erl_94c7f7240b018e7e",
+	"hello_worker_erl_bc5075541725aebd", "hello_worker_gleam_add10efbbbc9967c", "hello_worker_gleam_c9c06ad5feda61ea",
+	"probe_24dcc9e9eee2b45f", "probe_b142b2f1716be0e4", "stress_worker_91c1b951a5052238",
+	"stress_worker_a1b2e188d9891cbf", "stress_worker_f66ed15cc2f34542",
 ]);
 const chunkSize = 256_000;
 // Renew the ten-minute idle period for both newly started and surviving

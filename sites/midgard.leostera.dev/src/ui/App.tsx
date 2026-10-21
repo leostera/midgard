@@ -140,12 +140,13 @@ function WorkerInventory({ compact = false }: { compact?: boolean }) {
 type RaceLanguage = "Elixir" | "Gleam" | "Erlang";
 // Seconds from the deploy command starting: when it exits, and when the new
 // version first answers. Medians of real runs: scripts/measure-deploy.sh and
-// bench/cloudflare-containers/measure.sh, October 2026.
+// bench/cloudflare-containers/measure.sh, October 2026. Midgard: Packer 0.4.0
+// with a warm shake cache (a machine's first Elixir deploy took ~34 s / 40 s).
 type Lane = { deployed: number; live: number };
 const raceTimings: Record<RaceLanguage, { midgard: Lane; container: Lane }> = {
-  Elixir: { midgard: { deployed: 78.3, live: 84.6 }, container: { deployed: 17.3, live: 186.3 } },
-  Gleam: { midgard: { deployed: 4.9, live: 10.4 }, container: { deployed: 16.0, live: 119.3 } },
-  Erlang: { midgard: { deployed: 4.2, live: 10.5 }, container: { deployed: 22.1, live: 181.9 } },
+  Elixir: { midgard: { deployed: 9.8, live: 15.4 }, container: { deployed: 17.3, live: 186.3 } },
+  Gleam: { midgard: { deployed: 5.8, live: 11.7 }, container: { deployed: 16.0, live: 119.3 } },
+  Erlang: { midgard: { deployed: 3.6, live: 13.8 }, container: { deployed: 22.1, live: 181.9 } },
 };
 const raceLanguages = Object.keys(raceTimings) as RaceLanguage[];
 const raceSeconds = 5; // a whole race plays in this long, whatever its real length
