@@ -109,9 +109,21 @@ defmodule Packer.Rebar3 do
   end
 
   defp collect_applications(root, primary) do
-    directories =
-      Path.wildcard(Path.join(root, "_build/default/lib/*")) ++
-        Path.wildcard(Path.join(root, "_build/default/checkouts/*"))
+    # Rebar3 resolves an app from _checkouts when present, otherwise from its
+    # fetched deps. Ignore the stale compiled copy left behind by the other.
+    {checkouts, stale_checkouts} =
+      Path.wildcard(Path.join(root, "_build/default/checkouts/*"))
+      |> Enum.split_with(&File.dir?(Path.join([root, "_checkouts", Path.basename(&1)])))
+
+    checkout_names = MapSet.new(checkouts, &Path.basename/1)
+
+    libs =
+      Path.wildcard(Path.join(root, "_build/default/lib/*"))
+      |> Enum.reject(&MapSet.member?(checkout_names, Path.basename(&1)))
+
+    lib_names = MapSet.new(libs, &Path.basename/1)
+    stale_checkouts = Enum.reject(stale_checkouts, &MapSet.member?(lib_names, Path.basename(&1)))
+    directories = libs ++ checkouts ++ stale_checkouts
 
     plugin_apps = plugin_apps(root)
 

@@ -5,7 +5,7 @@ defmodule Packer.GleamTest do
   @options [
     project: @project,
     gleam: true,
-    entry: "amber_worker",
+    entry: "gleam_worker",
     function: "handle",
     protocol: "midgard.bytes.v1"
   ]
@@ -27,19 +27,19 @@ defmodule Packer.GleamTest do
 
         assert manifest["entrypoint"] == %{
                  "arity" => 1,
-                 "module" => "amber_worker",
+                 "module" => "gleam_worker",
                  "function" => "handle",
                  "protocol" => "midgard.bytes.v1"
                }
 
-        assert Enum.map(manifest["modules"], & &1["name"]) == ["amber_worker", "midgard"]
+        assert Enum.map(manifest["modules"], & &1["name"]) == ["gleam_worker", "midgard"]
 
         assert manifest["dependencies"] == [
-                 %{"app" => "midgard_gleam", "version" => "0.2.0", "modules" => ["midgard"]}
+                 %{"app" => "midgard_gleam", "version" => "0.3.0", "modules" => ["midgard"]}
                ]
 
         assert {:ok, %{"execution" => "not_verified"}} = Packer.Profile.report(output)
-        refute File.exists?(Path.join(output, "modules/amber_worker@@main.beam"))
+        refute File.exists?(Path.join(output, "modules/gleam_worker@@main.beam"))
 
         manifest_file = Path.join(output, "manifest.json")
         original = File.read!(manifest_file)
@@ -61,7 +61,7 @@ defmodule Packer.GleamTest do
              Packer.pack(
                project: @project,
                gleam: true,
-               entry: "amber_worker",
+               entry: "gleam_worker",
                function: "handle"
              )
 

@@ -73,7 +73,7 @@ defmodule Mix.Tasks.Midgard.Deploy do
         "Browser text preview: GET #{route_prefix}\nRaw-byte example: curl -X POST --data-binary 'hello' '#{route_prefix}'"
 
       _ ->
-        "Append a path implemented by your worker (generated workers use GET #{route_prefix}hello)"
+        "Try it: curl #{route_prefix}   (generated workers answer GET / with Hello Joe!)"
     end
   end
 

@@ -206,14 +206,14 @@ mix archive.install hex midgard_cli --force`,
     _, _ -> not_found()
   }
 }`,
-    sourceFile: "examples/gleam_worker/src/amber_worker.gleam",
+    sourceFile: "examples/gleam_worker/src/gleam_worker.gleam",
     sourceNote: "Minimal route example: GET / returns Hello Joe! The full worker also decodes the request frame.",
-    sourceUrl: "https://github.com/leostera/midgard/blob/main/examples/gleam_worker/src/amber_worker.gleam",
+    sourceUrl: "https://github.com/leostera/midgard/blob/main/examples/gleam_worker/src/gleam_worker.gleam",
     buildTitle: "Build and deploy",
     build: `(cd examples/gleam_worker && gleam build --target erlang)
 mix packer.pack --project examples/gleam_worker --gleam \\
-  --entry amber_worker --function handle --protocol midgard.bytes.v1
-mix midgard.deploy --artifact examples/gleam_worker/amber_worker.midgard`,
+  --entry gleam_worker --function handle --protocol midgard.bytes.v1
+mix midgard.deploy --artifact examples/gleam_worker/gleam_worker.midgard`,
     buildNote: "Build and deploy the worker; each deployment gets its own URL."
   },
   erlang: {

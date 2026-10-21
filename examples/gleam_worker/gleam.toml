@@ -1,5 +1,5 @@
-name = "amber_worker"
+name = "gleam_worker"
 version = "0.1.0"
 
 [dependencies]
-midgard_gleam = "0.2.0"
+midgard_gleam = { path = "../../packages/gleam" }

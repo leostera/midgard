@@ -38,7 +38,7 @@ The lower-level `mix packer.pack --project DIR --entry MODULE --function NAME --
 ### Erlang-target Gleam
 
 ```sh
-mix packer.pack --project /path/to/app --gleam --entry amber_worker \
+mix packer.pack --project /path/to/app --gleam --entry gleam_worker \
   --function handle --protocol raw.bytes.v1
 ```
 

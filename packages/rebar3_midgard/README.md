@@ -2,13 +2,15 @@
 
 Build and ship an Erlang worker from the Rebar3 workflow you already use. The plugin adds `pack`, `inspect`, and `deploy` under `rebar3 midgard`, while keeping route handling and application behavior in your Erlang project.
 
+> Midgard is a tech demo. It requires OTP 29.
+
 ## Project setup
 
 Declare the Erlang SDK and project plugin in `rebar.config`:
 
 ```erlang
-{deps, [{midgard, "0.2.0", {pkg, midgard_erlang}}]}.
-{project_plugins, [{rebar3_midgard, "0.2.0"}]}.
+{deps, [{midgard, "0.3.0", {pkg, midgard_erlang}}]}.
+{project_plugins, [{rebar3_midgard, "0.3.0"}]}.
 {midgard, [
     {entry, my_worker},
     {function, handle},
@@ -42,4 +44,4 @@ mix archive.install hex midgard_cli --force
 
 In repository development and tests, local `_checkouts` symlinks may provide the plugin and SDK. Published projects use the Hex dependencies declared in `rebar.config`.
 
-See the [Erlang example](../../examples/erlang_worker/README.md) and [project guide](../../docs/erlang-projects.md) for a complete worker.
+See the [Erlang example](https://github.com/leostera/midgard/tree/main/examples/erlang_worker) and [project guide](https://github.com/leostera/midgard/blob/main/docs/erlang-projects.md) for a complete worker.

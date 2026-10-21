@@ -1,6 +1,8 @@
 # Midgard for Gleam
 
-Use familiar Gleam request and response types in an Erlang-target worker, then encode a response as the `midgard.bytes.v1` binary frame. Midgard supplies the small framework boundary; your application owns routing and response content.
+Write Erlang-target Gleam workers for [Midgard](https://midgard.leostera.dev) with plain request and response types. The SDK handles the `midgard.bytes.v1` wire format; your application owns routing and response content.
+
+> Midgard is a tech demo. It requires OTP 29.
 
 ## Install
 
@@ -8,7 +10,7 @@ Add the package to `gleam.toml`:
 
 ```toml
 [dependencies]
-midgard_gleam = "0.2.0"
+midgard_gleam = "0.3.0"
 ```
 
 ## Handle a request
@@ -16,14 +18,18 @@ midgard_gleam = "0.2.0"
 ```gleam
 import midgard
 
+pub fn handle(input: BitArray) -> BitArray {
+  midgard.serve(input, handle_request)
+}
+
 pub fn handle_request(request: midgard.Request) -> midgard.Response {
   case request.method, request.path {
-    <<"GET":utf8>>, <<"/hello":utf8>> ->
-      midgard.Response(status: 200, body: <<"Hello!\n":utf8>>)
-    _, _ ->
-      midgard.Response(status: 404, body: <<"Not found\n":utf8>>)
+    <<"GET":utf8>>, <<"/":utf8>> -> midgard.Response(200, <<"Hello Joe!":utf8>>)
+    _, _ -> midgard.Response(404, <<"Not found\n":utf8>>)
   }
 }
 ```
 
-The Hex package is named `midgard_gleam`; its Gleam module is still imported as `midgard`. The package defines data types and response encoding. It does not supply an HTTP server, router, or application behavior. See the [Gleam worker example](../../examples/gleam_worker/README.md) for the worker's binary entrypoint and build steps.
+`midgard.serve` decodes the `midgard.bytes.v1` request frame, calls your handler, and encodes the response. Malformed frames receive a 400 response. `midgard.decode_request` and `midgard.encode_response` are also available if you want to own the entrypoint yourself.
+
+The Hex package is named `midgard_gleam`; its Gleam module is imported as `midgard`. It does not supply an HTTP server or router; routes and application behavior stay in your worker. See the [Gleam worker example](https://github.com/leostera/midgard/tree/main/examples/gleam_worker) for build and deploy steps.

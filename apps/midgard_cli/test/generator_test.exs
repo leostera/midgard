@@ -16,7 +16,10 @@ defmodule Midgard.CLI.GeneratorTest do
       mix = File.read!(Path.join(destination, "mix.exs"))
       assert mix =~ "packer: [entry: MyWorker]"
       assert mix =~ ~s(elixir: "~> 1.21.0-dev")
-      assert File.read!(Path.join(destination, "lib/my_worker.ex")) =~ "Midgard.Worker"
+      worker = File.read!(Path.join(destination, "lib/my_worker.ex"))
+      assert worker =~ "Midgard.Worker"
+      assert worker =~ ~s|def handle_request(%Midgard.Request{method: "GET", path: "/"}) do|
+      assert worker =~ ~s({200, "Hello Joe!"})
 
       assert File.read!(Path.join(destination, "lib/my_worker/greeting.ex")) =~
                "defmodule MyWorker.Greeting"
@@ -61,8 +64,8 @@ defmodule Midgard.CLI.GeneratorTest do
                Midgard.CLI.Generator.generate_from_hex("hex_worker", destination)
 
       mix = File.read!(Path.join(destination, "mix.exs"))
-      assert mix =~ ~s({:midgard, "~> 0.2"})
-      assert mix =~ ~s(hex: "midgard_packer", version: "~> 0.2")
+      assert mix =~ ~s({:midgard, "~> 0.3"})
+      assert mix =~ ~s(hex: "midgard_packer", version: "~> 0.3")
       refute mix =~ ":midgard_cli"
     after
       File.rm_rf!(destination)

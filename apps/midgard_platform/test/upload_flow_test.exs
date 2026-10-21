@@ -17,7 +17,7 @@ if System.get_env("MIDGARD_NATIVE_UPLOAD") == "1" do
       File.mkdir_p!(root)
       File.cp_r!(Path.join(checkout, "apps/midgard_cli"), cli_source)
       mix!("archive.build", [], cli_source, mix_env)
-      archive = Path.join(cli_source, "midgard_cli-0.2.0.ez")
+      archive = Path.join(cli_source, "midgard_cli-0.3.0.ez")
       mix!("archive.install", [archive, "--force"], checkout, mix_env)
 
       mix!(
