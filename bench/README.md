@@ -25,3 +25,13 @@ Medians of three runs each, October 2026, from a laptop over a home connection:
 Most of the Containers time comes after `cf deploy` exits, while the new
 version rolls out; individual runs ranged from 2 to 6 minutes. Once running, a
 stopped container restarts in about a second.
+
+`measure.sh` creates the `midgard-container-bench` Worker and container
+application on the logged-in account. Delete both when done:
+
+```sh
+cd bench/cloudflare-containers
+./node_modules/.bin/cf containers applications list   # find the bench app id
+./node_modules/.bin/cf containers applications delete <id> --force
+./node_modules/.bin/cf workers delete midgard-container-bench --force
+```
