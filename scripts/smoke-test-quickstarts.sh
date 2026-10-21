@@ -5,7 +5,8 @@
 # "Hello Joe!". Usage: scripts/smoke-test-quickstarts.sh [elixir] [gleam] [erlang]
 set -euo pipefail
 
-version="${MIDGARD_VERSION:-0.3.0}"
+root="$(cd "$(dirname "$0")/.." && pwd)"
+version="${MIDGARD_VERSION:-$(sed -nE 's/^ *version: "([^"]+)",?$/\1/p' "$root/apps/midgard/mix.exs" | head -1)}"
 elixir_toolchain="${MIDGARD_ELIXIR_TOOLCHAIN:-/tmp/midgard-toolchain}"
 if [ "$#" -eq 0 ]; then set -- elixir gleam erlang; fi
 

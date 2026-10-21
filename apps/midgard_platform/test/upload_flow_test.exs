@@ -16,8 +16,9 @@ if System.get_env("MIDGARD_NATIVE_UPLOAD") == "1" do
       mix_env = [{"MIX_HOME", mix_home}, {"HEX_HOME", hex_home}]
       File.mkdir_p!(root)
       File.cp_r!(Path.join(checkout, "apps/midgard_cli"), cli_source)
+      cli_source |> Path.join("*.ez") |> Path.wildcard() |> Enum.each(&File.rm!/1)
       mix!("archive.build", [], cli_source, mix_env)
-      archive = Path.join(cli_source, "midgard_cli-0.3.0.ez")
+      [archive] = Path.wildcard(Path.join(cli_source, "midgard_cli-*.ez"))
       mix!("archive.install", [archive, "--force"], checkout, mix_env)
 
       mix!(

@@ -1,100 +1,52 @@
 # Releasing
 
-All six packages share one version and are published together: `midgard`, `midgard_packer`, `midgard_cli`, `midgard_erlang`, `midgard_gleam`, and `rebar3_midgard`. Never publish a subset; the scaffold, SDKs, plugin, and docs pin each other's versions.
+All six packages share one version and are published together: `midgard`, `midgard_packer`, `midgard_cli`, `midgard_erlang`, `rebar3_midgard`, and `midgard_gleam`. Never publish a subset; the scaffold, SDKs, plugin, examples, and docs pin each other's versions.
 
-## 1. Pre-flight
+`scripts/release.sh` runs the whole process. Each step refuses to run if an earlier one hasn't completed.
 
-The version is set in `apps/{midgard,packer,midgard_cli}/mix.exs`, `packages/erlang/src/midgard.app.src`, `packages/rebar3_midgard/src/rebar3_midgard.app.src`, and `packages/gleam/gleam.toml`. Docs, the website, the scaffold (`apps/midgard_cli/lib/midgard/cli/generator.ex`), and `examples/erlang_worker/rebar.config` reference it too:
+## Prerequisites
 
-```sh
-grep -rn '0\.3\.0\|~> 0\.3' --include='*.md' --include='*.ex' --include='*.exs' \
-  --include='*.src' --include='*.toml' --include='*.config' --include='*.tsx' \
-  --exclude-dir=deps --exclude-dir=_build --exclude-dir=node_modules --exclude-dir=build .
-```
+- Elixir, OTP 29, Rebar3 with the `rebar3_hex` plugin, Gleam, and Bun.
+- Hex credentials for each tool: `mix hex.user auth` and `rebar3 hex user auth`. `gleam publish` asks for its own credentials, or reads `HEXPM_API_KEY`.
+- If Mix reports `Unknown CA` or `token_refresh_unavailable`, export `HEX_CACERTS_PATH=/etc/ssl/cert.pem`. The script sets this by default.
 
-Run the checks:
+## Release
 
 ```sh
-mix format --check-formatted && mix test
-(cd packages/erlang && rebar3 eunit)
-(cd packages/rebar3_midgard && rebar3 compile)
-(cd examples/erlang_worker && rebar3 eunit)
-(cd packages/gleam && gleam format --check src && gleam build --target erlang)
-(cd examples/gleam_worker && gleam build --target erlang)
-(cd sites/midgard.leostera.dev && bun test && bun run typecheck && bun run build)
+scripts/release.sh bump 0.4.0      # 1. set the version everywhere
+git diff                           #    review, then commit and push
+scripts/release.sh check           # 2. every test suite + build all six tarballs
+scripts/release.sh publish --dry-run
+scripts/release.sh publish         # 3. publish all six to Hex
+scripts/release.sh finalize        # 4. point examples at Hex, commit, push
+scripts/release.sh smoke           # 5. run the website quickstarts against Hex
+scripts/release.sh deploy-site     # 6. deploy and verify midgard.leostera.dev
 ```
 
-Optionally inspect the tarballs without publishing: `mix hex.build` in each `apps/*` package, `rebar3 hex build` in each Rebar3 package, and `gleam export hex-tarball` in `packages/gleam`.
+After `bump` and a commit, `scripts/release.sh all` runs steps 2–6 in order.
 
-## 2. Authenticate
+### 1. `bump VERSION`
 
-Each tool keeps its own Hex credentials:
+Rewrites the version in every package manifest, in the scaffold's `~> MAJOR.MINOR` requirements, and in the tests, docs, website, and example configs that pin it. It then points the Gleam example at the local SDK so unreleased SDK changes are tested before publishing, and lists any remaining mentions of the old version for you to review.
 
-```sh
-mix hex.user auth
-rebar3 hex user auth   # needs the rebar3_hex plugin in ~/.config/rebar3/rebar.config
-```
+### 2. `check`
 
-`gleam publish` prompts for credentials, or reads `HEXPM_API_KEY`.
+Runs the Elixir umbrella tests, the Erlang SDK and example EUnit suites, the Rebar3 plugin compile, the Gleam builds and format checks, and the website tests, typecheck, and build. Then it builds all six Hex tarballs without publishing them, and confirms each declares the release version and ships its README.
 
-## 3. Publish
+### 3. `publish [--dry-run]`
 
-Publish the SDKs before the tools that scaffold projects depending on them:
+Requires a clean, pushed working tree, the same version in all six packages, and Hex sign-ins for Mix and Rebar3. It publishes the SDKs before the tools that scaffold projects depending on them, then waits until Hex lists all six. Packages already published at this version are skipped, so after a failure you can fix the problem and rerun it. `--dry-run` runs the pre-flight checks and prints what would be published.
 
-```sh
-(cd apps/midgard && mix hex.publish)
-(cd apps/packer && mix hex.publish)
-(cd apps/midgard_cli && mix hex.publish)
-(cd packages/erlang && rebar3 hex publish)
-(cd packages/rebar3_midgard && rebar3 hex publish)
-(cd packages/gleam && gleam publish)
-```
+Packages are published without HexDocs, as in earlier releases; the READMEs link to GitHub.
 
-Confirm all six report the new version:
+### 4. `finalize`
 
-```sh
-for p in midgard midgard_packer midgard_cli midgard_erlang midgard_gleam rebar3_midgard; do
-  printf '%-16s ' "$p"; curl -fsS "https://hex.pm/api/packages/$p" | python3 -c 'import json,sys; print(json.load(sys.stdin)["latest_version"])'
-done
-```
+Points the Gleam example at the published `midgard_gleam`, relocks the Erlang example against Hex (its `_checkouts` development symlinks are moved aside while Rebar3 writes the lock, then restored), reruns the Packer tests, and commits and pushes the result.
 
-## 4. Point the examples at Hex
+### 5. `smoke [elixir] [gleam] [erlang]`
 
-Before the release, the Gleam example builds against the local SDK so unreleased changes can be tested. Switch it to the published package and refresh its manifest:
+Runs `scripts/smoke-test-quickstarts.sh`. It follows the website quickstarts in throwaway directories with a fresh `MIX_HOME`, installs everything from Hex, deploys each worker to the public demo, and checks that `GET /` returns `Hello Joe!`. The Elixir quickstart uses the pinned Elixir from `/tmp/midgard-toolchain` (or `MIDGARD_ELIXIR_TOOLCHAIN`), and builds it if it's missing.
 
-```sh
-cd examples/gleam_worker
-sed -i.bak 's|^midgard_gleam = .*|midgard_gleam = "0.3.0"|' gleam.toml && rm gleam.toml.bak
-rm manifest.toml && gleam build --target erlang
-cd ../..
-```
+### 6. `deploy-site`
 
-The Erlang example keeps its `_checkouts` symlinks for development. Rebar3 skips them when it writes a lock, so move them aside to lock against Hex:
-
-```sh
-cd examples/erlang_worker
-mv _checkouts /tmp/erlang-worker-checkouts
-rm -rf _build && rebar3 upgrade --all
-mv /tmp/erlang-worker-checkouts _checkouts
-cd ../..
-```
-
-Run the Packer tests again (`mix test`), then commit and push.
-
-## 5. Smoke-test the quickstarts
-
-Run the website quickstarts against the published packages. Each one deploys a worker to the public demo and checks that `GET /` returns `Hello Joe!`:
-
-```sh
-scripts/smoke-test-quickstarts.sh            # or: elixir | gleam | erlang
-```
-
-The Elixir quickstart needs the pinned Elixir. The script reuses `/tmp/midgard-toolchain` (or `MIDGARD_ELIXIR_TOOLCHAIN`), and builds it if it's missing.
-
-## 6. Deploy the website
-
-The website shows the new install commands, so deploy it only after the packages are live:
-
-```sh
-cd sites/midgard.leostera.dev && bun run deploy
-```
+The website shows the new install commands, so this refuses to run until all six packages are live. It deploys the site and checks that the live bundle shows the new version.
