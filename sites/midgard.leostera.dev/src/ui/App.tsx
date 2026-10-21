@@ -172,6 +172,20 @@ function RaceLane({ name, lane, clock, scale }: { name: string; lane: Lane; cloc
   );
 }
 
+const heroLanguages = ["Elixir", "Gleam", "Erlang"];
+
+function RotatingLanguage() {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => {
+      setIndex((current) => (current + 1) % heroLanguages.length);
+    }, 2_400);
+    return () => window.clearInterval(timer);
+  }, []);
+  return <><span className="sr-only">Elixir, Gleam, and Erlang</span><span className="rotating-word" aria-hidden="true" key={heroLanguages[index]}>{heroLanguages[index]}</span></>;
+}
+
 function DeployRace() {
   const [language, setLanguage] = useState<RaceLanguage>("Elixir");
   const timings = raceTimings[language];
@@ -425,7 +439,7 @@ function Landing() {
     <>
       <section className="hero">
         <div className="hero-copy">
-          <h1>Serverless Elixir</h1>
+          <h1>Serverless <RotatingLanguage /></h1>
           <p className="hero-intro">Deploy Elixir, Erlang, and Gleam workers. Every deployment gets its own immutable public URL.</p>
           <div className="hero-actions">
             <a className="button button-primary" href="#deploy">Deploy a worker</a>

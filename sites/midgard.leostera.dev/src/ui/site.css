@@ -376,3 +376,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
     transition-duration: .01ms !important;
   }
 }
+
+.rotating-word { display: inline-block; animation: word-in .3s ease-out; }
+@keyframes word-in {
+  from { opacity: .3; transform: translateY(.08em); }
+  to { opacity: 1; transform: translateY(0); }
+}
