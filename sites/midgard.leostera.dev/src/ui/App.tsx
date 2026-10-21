@@ -137,18 +137,76 @@ function WorkerInventory({ compact = false }: { compact?: boolean }) {
   return <div className="worker-list">{workers.map((worker) => <WorkerCard key={worker.slug} worker={worker} />)}</div>;
 }
 
-const workerLanguages = ["Elixir", "Gleam", "Erlang"];
+type RaceLanguage = "Elixir" | "Gleam" | "Erlang";
+// Seconds from the deploy command starting: when it exits, and when the new
+// version first answers. Medians of real runs: scripts/measure-deploy.sh and
+// bench/cloudflare-containers/measure.sh, October 2026.
+type Lane = { deployed: number; live: number };
+const raceTimings: Record<RaceLanguage, { midgard: Lane; container: Lane }> = {
+  Elixir: { midgard: { deployed: 78.3, live: 84.6 }, container: { deployed: 17.3, live: 186.3 } },
+  Gleam: { midgard: { deployed: 4.9, live: 10.4 }, container: { deployed: 16.0, live: 119.3 } },
+  Erlang: { midgard: { deployed: 4.2, live: 10.5 }, container: { deployed: 22.1, live: 181.9 } },
+};
+const raceLanguages = Object.keys(raceTimings) as RaceLanguage[];
+const raceSeconds = 5; // a whole race plays in this long, whatever its real length
+const raceHoldSeconds = 3;
 
-function RotatingLanguage() {
-  const [index, setIndex] = useState(0);
+function formatSeconds(seconds: number): string {
+  if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 1 : 0)} s`;
+  const whole = Math.round(seconds);
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")} min`;
+}
+
+function RaceLane({ name, lane, clock, scale }: { name: string; lane: Lane; clock: number; scale: number }) {
+  const shown = Math.min(clock, lane.live);
+  const status = clock >= lane.live ? `Live in ${formatSeconds(lane.live)}` : clock >= lane.deployed ? "Rolling out" : "Deploying";
+  return (
+    <div className={`race-lane${clock >= lane.live ? " is-live" : ""}`}>
+      <div className="race-lane-label"><strong>{name}</strong><span>{status}</span></div>
+      <div className="race-track">
+        <span className="race-deploy" style={{ width: `${(Math.min(shown, lane.deployed) / scale) * 100}%` }} />
+        <span className="race-wait" style={{ width: `${(Math.max(0, shown - lane.deployed) / scale) * 100}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function DeployRace() {
+  const [language, setLanguage] = useState<RaceLanguage>("Elixir");
+  const timings = raceTimings[language];
+  const scale = Math.max(timings.midgard.live, timings.container.live);
+  const [clock, setClock] = useState(scale);
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const timer = window.setInterval(() => {
-      setIndex((current) => (current + 1) % workerLanguages.length);
-    }, 2_400);
-    return () => window.clearInterval(timer);
-  }, []);
-  return <><span className="sr-only">Elixir, Gleam, and Erlang</span><span className="rotating-word" aria-hidden="true" key={workerLanguages[index]}>{workerLanguages[index]}</span></>;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setClock(scale); return; }
+    let frame = 0;
+    const started = performance.now();
+    const tick = (now: number) => {
+      const elapsed = ((now - started) / 1000) % (raceSeconds + raceHoldSeconds);
+      setClock(Math.min(scale, (elapsed / raceSeconds) * scale));
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [scale]);
+  return (
+    <figure className="race" aria-label={`Time from deploy command to first response, ${language} worker`}>
+      <div className="race-head">
+        <div className="race-tabs" role="tablist" aria-label="Worker language">
+          {raceLanguages.map((name) => (
+            <button key={name} type="button" role="tab" aria-selected={name === language} className="race-tab" onClick={() => setLanguage(name)}>{name}</button>
+          ))}
+        </div>
+        <span className="race-clock" aria-hidden="true">{formatSeconds(clock)}</span>
+      </div>
+      <RaceLane name="Midgard" lane={timings.midgard} clock={clock} scale={scale} />
+      <RaceLane name="Cloudflare Containers" lane={timings.container} clock={clock} scale={scale} />
+      <div className="race-legend" aria-hidden="true"><span><i className="race-deploy" />Deploy command</span><span><i className="race-wait" />Until the new version answers</span></div>
+      <figcaption>
+        The same hello-world worker, from running the deploy command to the first response from the new version.
+        Medians of three runs from a laptop, October 2026. <a href="https://github.com/leostera/midgard/tree/main/bench">How we measured</a>
+      </figcaption>
+    </figure>
+  );
 }
 
 type QuickstartLanguage = "elixir" | "gleam" | "erlang";
@@ -342,60 +400,6 @@ function Quickstart() {
   );
 }
 
-type TimingRow = { label: string; note?: string; values: [string, string, string] };
-
-// Measured 2026-10-21 with scripts/measure-deploy.sh and scripts/measure-container.sh.
-const midgardTimings: TimingRow[] = [
-  { label: "Deploy command", note: "build, upload, admission", values: ["4.2 s", "4.4 s", "75–90 s"] },
-  { label: "Until the new URL answers", note: "includes DNS for the new hostname", values: ["10.9 s", "10.1 s", "80–95 s"] },
-  { label: "Uploaded", values: ["7.7 KB", "6.0 KB", "17.9 MB"] },
-];
-
-const containerTimings: TimingRow[] = [
-  { label: "Image build", values: ["2.0 s", "1.7 s", "6.8 s"] },
-  { label: "docker run until first response", note: "median of 10, image already local", values: ["0.36 s", "0.46 s", "0.37 s"] },
-  { label: "Image size", note: "compressed", values: ["128 MB", "128 MB", "155 MB"] },
-];
-
-function TimingRows({ title, rows }: { title: string; rows: TimingRow[] }) {
-  return (
-    <tbody>
-      <tr className="timings-group"><th colSpan={4} scope="colgroup">{title}</th></tr>
-      {rows.map((row) => (
-        <tr key={row.label}>
-          <th scope="row">{row.label}{row.note && <small>{row.note}</small>}</th>
-          {row.values.map((value, index) => <td key={index}>{value}</td>)}
-        </tr>
-      ))}
-    </tbody>
-  );
-}
-
-function Timings() {
-  return (
-    <section className="limits-section" id="timings">
-      <div className="section-heading">
-        <h2>How long it takes</h2>
-        <p>The same hello-world worker in each language, deployed to this demo and booted in an ordinary container.</p>
-      </div>
-      <div>
-        <div className="timings-scroll">
-          <table className="timings-table">
-            <thead><tr><td /><th scope="col">Erlang</th><th scope="col">Gleam</th><th scope="col">Elixir</th></tr></thead>
-            <TimingRows title="Midgard, to this public demo" rows={midgardTimings} />
-            <TimingRows title="Container, same modules on erlang:29-slim" rows={containerTimings} />
-          </table>
-        </div>
-        <ul className="limits-list timings-notes">
-          <li><strong>Not the same measurement.</strong> Midgard’s numbers run from your terminal to a live public URL. The container numbers are local: they don’t include pushing a 128 MB image to a registry, pulling it onto a server, or routing to it.</li>
-          <li><strong>Why Elixir is slow.</strong> Its shipment carries all of Elixir and the OTP libraries it touches, 339 modules for a hello world. We’re working on <a href="https://github.com/leostera/midgard/blob/main/docs/rfds/RFD0003-tree-shaken-worker-shipments.md">shipping only the code a worker uses</a>.</li>
-          <li><strong>Measure it yourself.</strong> Measured on a laptop over a home connection. The scripts are <a href="https://github.com/leostera/midgard/tree/main/scripts">in the repository</a>.</li>
-        </ul>
-      </div>
-    </section>
-  );
-}
-
 function Limitations() {
   return (
     <section className="limits-section" id="limits">
@@ -420,18 +424,17 @@ function Landing() {
     <>
       <section className="hero">
         <div className="hero-copy">
-          <h1>Serverless <RotatingLanguage /></h1>
+          <h1>Serverless Elixir</h1>
           <p className="hero-intro">Deploy Elixir, Erlang, and Gleam workers. Every deployment gets its own immutable public URL.</p>
           <div className="hero-actions">
             <a className="button button-primary" href="#deploy">Deploy a worker</a>
             <a className="button button-quiet" href="/workers">Explore public demos</a>
           </div>
         </div>
+        <DeployRace />
       </section>
 
       <Quickstart />
-
-      <Timings />
 
       <Limitations />
 

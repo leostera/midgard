@@ -31,7 +31,8 @@ serve(Socket, Module, Function) ->
             <<2, Status:16, Size:16, Out:Size/binary>> = Module:Function(Frame),
             gen_tcp:send(Socket, [<<"HTTP/1.1 ">>, integer_to_binary(Status),
                                   <<" OK\r\ncontent-type: text/plain\r\ncontent-length: ">>,
-                                  integer_to_binary(Size), <<"\r\nconnection: close\r\n\r\n">>, Out]);
+                                  integer_to_binary(Size), <<"\r\nx-image-id: ">>, os:getenv("IMAGE_ID", ""),
+                                  <<"\r\nconnection: close\r\n\r\n">>, Out]);
         _ ->
             ok
     end,

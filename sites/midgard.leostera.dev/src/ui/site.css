@@ -75,11 +75,49 @@ button, a { -webkit-tap-highlight-color: transparent; }
   font-weight: 500;
   line-height: 1.2;
 }
-.rotating-word { display: inline-block; animation: word-in .3s ease-out; }
-@keyframes word-in {
-  from { opacity: .3; transform: translateY(.08em); }
-  to { opacity: 1; transform: translateY(0); }
+.race {
+  margin: 0;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
 }
+.race-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.race-tabs { display: flex; gap: 4px; }
+.race-tab {
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+  font: 500 13px var(--display);
+  cursor: pointer;
+}
+.race-tab:hover { color: var(--text); }
+.race-tab[aria-selected="true"] { border-color: var(--line); background: var(--surface); color: var(--text); }
+.race-clock { font: 600 20px var(--mono); font-variant-numeric: tabular-nums; color: var(--text); }
+.race-lane + .race-lane { margin-top: 18px; }
+.race-lane-label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 13px; }
+.race-lane-label strong { color: var(--text); font-weight: 600; }
+.race-lane-label span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.race-lane.is-live .race-lane-label span { color: var(--green); font-weight: 600; }
+.race-track {
+  display: flex;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.race-deploy { background: var(--accent); }
+.race-wait {
+  background: repeating-linear-gradient(-45deg, var(--accent-border), var(--accent-border) 4px, var(--accent-soft) 4px, var(--accent-soft) 8px);
+}
+.race-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 18px; font-size: 12px; color: var(--muted); }
+.race-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.race-legend i { display: inline-block; width: 14px; height: 8px; border-radius: 2px; }
+.race figcaption { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.6; color: var(--muted); }
+.race figcaption a { color: var(--accent-ink); text-decoration: underline; }
 .sr-only {
   position: absolute;
   width: 1px;
@@ -217,38 +255,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .limits-list strong { color: var(--text); }
 .limits-list code { font: 12px var(--mono); }
 .limits-list a { color: var(--accent-ink); text-decoration: underline; }
-.timings-scroll { overflow-x: auto; }
-.timings-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-}
-.timings-table th, .timings-table td {
-  padding: 12px 0 12px 16px;
-  border-bottom: 1px solid var(--line);
-  text-align: right;
-  white-space: nowrap;
-}
-.timings-table thead th { color: var(--text); font-weight: 600; font-size: 13px; }
-.timings-table tbody th[scope="row"] {
-  padding-left: 0;
-  text-align: left;
-  font-weight: 500;
-  color: var(--text);
-  white-space: normal;
-}
-.timings-table tbody th small { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--muted); }
-.timings-table td { font: 13px var(--mono); color: var(--text); }
-.timings-group th {
-  padding: 26px 0 8px;
-  text-align: left;
-  font: 600 11px var(--mono);
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--accent-ink);
-}
-.timings-notes { margin-top: 28px; }
 .inventory-preview { padding-top: 12px; padding-bottom: 86px; }
 .inventory-title {
   display: flex;

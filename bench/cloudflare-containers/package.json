@@ -1,0 +1,6 @@
+{
+	"name": "midgard-container-bench",
+	"private": true,
+	"type": "module",
+	"devDependencies": { "@cloudflare/vite-plugin": "beta", "cf": "^1.0.0-beta.18", "vite": "^8.3.4" }
+}
