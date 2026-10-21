@@ -2,6 +2,10 @@ defmodule Packer.RuntimeClosure do
   @moduledoc """
   Resolves the original BEAM import and external-fun closure on the developer's
   machine. This does not load, rewrite, or execute any code in the serving VM.
+
+  Consolidated Elixir protocols name their implementations only as atoms in
+  `impl_for/1`, never as imports, so the walk also follows the implementation
+  modules a protocol's atom table names (`Elixir.<Protocol>.<Type>`).
   """
 
   @max_modules 512
@@ -91,10 +95,35 @@ defmodule Packer.RuntimeClosure do
   defp imports(module, beam) do
     with {:ok, {^module, [imports: imports]}} <- :beam_lib.chunks(beam, [:imports]),
          {:beam_file, ^module, _, _, _, functions} <- :beam_disasm.file(beam) do
-      {:ok, Enum.map(imports, &elem(&1, 0)) ++ external_modules(functions)}
+      {:ok,
+       Enum.map(imports, &elem(&1, 0)) ++
+         external_modules(functions) ++ protocol_implementations(module, beam)}
     else
       _ -> {:error, "cannot inspect dependency BEAM #{inspect(module)}"}
     end
+  end
+
+  @doc false
+  # Implementation modules named by a consolidated protocol, without loading it.
+  # Atoms that merely share the prefix (such as Inspect.Opts) are harmless: they
+  # are modules too, and a missing BEAM for one is skipped, not an error.
+  def protocol_implementations(module, beam) do
+    with {:ok, {^module, [exports: exports]}} <- :beam_lib.chunks(beam, [:exports]),
+         true <- {:__protocol__, 1} in exports,
+         {:ok, {^module, [atoms: atoms]}} <- :beam_lib.chunks(beam, [:atoms]) do
+      prefix = Atom.to_string(module) <> "."
+
+      for {_index, atom} <- atoms,
+          String.starts_with?(Atom.to_string(atom), prefix),
+          available?(atom),
+          do: atom
+    else
+      _ -> []
+    end
+  end
+
+  defp available?(module) do
+    is_list(:code.where_is_file(Atom.to_charlist(module) ++ ~c".beam"))
   end
 
   defp external_modules(term) when is_function(term) do

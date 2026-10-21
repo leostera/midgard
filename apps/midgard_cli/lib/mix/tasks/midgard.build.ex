@@ -9,14 +9,18 @@ defmodule Mix.Tasks.Midgard.Build do
   Reads the required `midgard.config.exs`, compiles the worker and dependency
   BEAMs on the developer machine, and writes `<app>.midgard/`. The generated
   artifact has not been loaded or executed by libbeam. Pass `--output DIR` to
-  choose an output directory.
+  choose an output directory. The artifact is tree shaken: only functions
+  reachable from the worker's entrypoint ship. `--no-shake` ships the whole
+  runtime closure instead.
   """
 
   @impl true
   def run(args) do
-    {options, positional, invalid} = OptionParser.parse(args, strict: [output: :string])
+    {options, positional, invalid} =
+      OptionParser.parse(args, strict: [output: :string, shake: :boolean])
 
-    if positional != [] or invalid != [], do: Mix.raise("Usage: mix midgard.build [--output DIR]")
+    if positional != [] or invalid != [],
+      do: Mix.raise("Usage: mix midgard.build [--output DIR] [--no-shake]")
 
     with {:ok, config} <- Midgard.CLI.Config.load() do
       Mix.Task.run("compile")
@@ -31,7 +35,8 @@ defmodule Mix.Tasks.Midgard.Build do
              Packer.pack(
                entry: Midgard.CLI.Config.entry(config),
                output: output,
-               runtime_closure: true
+               runtime_closure: true,
+               shake: Keyword.get(options, :shake, true)
              ),
            {:ok, report} <- Packer.Profile.report(path) do
         Mix.shell().info("Built #{path}\n#{Packer.Profile.summary(report)}")

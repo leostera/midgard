@@ -31,11 +31,38 @@ defmodule Packer do
          :ok <- validate_runtime_toolchain(entry),
          {:ok, local} <- local_modules(app),
          {:ok, dependencies} <- Packer.Dependencies.collect(),
-         {:ok, modules, dep_records} <- mix_modules(app, local, dependencies, opts) do
+         {:ok, modules, dep_records} <- mix_modules(app, local, dependencies, opts),
+         {:ok, modules, dep_records} <- maybe_shake(modules, dep_records, entry, opts) do
       Packer.Artifact.build(output, to_string(app), module_name(entry), modules, dep_records,
         function: Keyword.get(opts, :function, "__midgard_call__"),
         protocol: Keyword.get(opts, :protocol, "midgard.bytes.v1")
       )
+    end
+  end
+
+  # Shaking needs the whole runtime closure: it walks into Elixir and OTP.
+  defp maybe_shake(modules, dep_records, entry, opts) do
+    if opts[:runtime_closure] && Keyword.get(opts, :shake, true) do
+      root =
+        {String.to_atom(module_name(entry)),
+         String.to_atom(Keyword.get(opts, :function, "__midgard_call__")), 1}
+
+      keep = Keyword.get(opts, :keep, (Mix.Project.config()[:packer] || [])[:keep] || [])
+
+      with {:ok, shaken, stats} <- Packer.Shake.run(modules, root, keep: keep) do
+        if Code.ensure_loaded?(Mix.Shell), do: Mix.shell().info(Packer.Shake.summary(stats))
+        kept = MapSet.new(shaken, & &1.name)
+
+        dep_records =
+          for record <- dep_records,
+              modules = Enum.filter(record.modules, &MapSet.member?(kept, &1)),
+              modules != [],
+              do: %{record | modules: modules}
+
+        {:ok, shaken, dep_records}
+      end
+    else
+      {:ok, modules, dep_records}
     end
   end
 

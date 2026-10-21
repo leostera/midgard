@@ -11,11 +11,13 @@ defmodule Mix.Tasks.Midgard.Deploy do
   def run(args) do
     {options, positional, invalid} =
       OptionParser.parse(args,
-        strict: [endpoint: :string, artifact: :string, output: :string]
+        strict: [endpoint: :string, artifact: :string, output: :string, shake: :boolean]
       )
 
     if positional != [] or invalid != [] do
-      Mix.raise("Usage: mix midgard.deploy [--endpoint URL] [--artifact DIR] [--output DIR]")
+      Mix.raise(
+        "Usage: mix midgard.deploy [--endpoint URL] [--artifact DIR] [--output DIR] [--no-shake]"
+      )
     end
 
     if options[:artifact] && options[:output] do
@@ -39,6 +41,7 @@ defmodule Mix.Tasks.Midgard.Deploy do
       if Mix.Project.get(), do: Mix.Task.run("compile")
     else
       build_args = if options[:output], do: ["--output", options[:output]], else: []
+      build_args = if options[:shake] == false, do: build_args ++ ["--no-shake"], else: build_args
       Mix.Task.run("midgard.build", build_args)
     end
 
