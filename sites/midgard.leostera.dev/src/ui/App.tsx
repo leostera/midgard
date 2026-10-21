@@ -179,15 +179,11 @@ cd hello_worker
 mix deps.get`,
     setupNote: "Use OTP 29 and the pinned Elixir. The scaffold fetches the published midgard and midgard_packer packages from Hex.",
     sourceTitle: "Handle a request",
-    source: `def handle_request(%Midgard.Request{method: "GET", path: "/hello/" <> name})
-    when name != "",
-    do: {200, HelloWorker.Greeting.hello(name)}
-
-def handle_request(%Midgard.Request{method: "GET", path: path})
-    when path in ["/", "/hello"],
-    do: {200, HelloWorker.Greeting.hello("world")}`,
+    source: `def handle_request(%Midgard.Request{method: "GET", path: "/"}) do
+  {200, "Hello Joe!"}
+end`,
     sourceFile: "lib/hello_worker.ex",
-    sourceNote: "Excerpt from the generated worker; the linked scaffold template contains the full project and deployment steps.",
+    sourceNote: "Minimal handler example: GET / returns Hello Joe! The full scaffold adds tests and deployment setup.",
     sourceUrl: "https://github.com/leostera/midgard/blob/main/apps/midgard_cli/lib/midgard/cli/generator.ex",
     buildTitle: "Test and deploy",
     build: `mix test
@@ -205,18 +201,13 @@ mix archive.install hex midgard_cli --force`,
     sourceTitle: "Handle a request",
     source: `fn dispatch(method: BitArray, path: BitArray) -> BitArray {
   case method, path {
-    <<"GET":utf8>>, <<"/hello":utf8>> ->
-      response(200, hello(<<"world":utf8>>))
-    <<"GET":utf8>>, <<"/hello/":utf8, name:bits>> ->
-      case valid_name(name) {
-        True -> response(200, hello(name))
-        False -> not_found()
-      }
+    <<"GET":utf8>>, <<"/":utf8>> ->
+      response(200, <<"Hello Joe!":utf8>>)
     _, _ -> not_found()
   }
 }`,
     sourceFile: "examples/gleam_worker/src/amber_worker.gleam",
-    sourceNote: "Tiny handler excerpt for illustration; the linked example shows the complete worker.",
+    sourceNote: "Minimal route example: GET / returns Hello Joe! The full worker also decodes the request frame.",
     sourceUrl: "https://github.com/leostera/midgard/blob/main/examples/gleam_worker/src/amber_worker.gleam",
     buildTitle: "Build and deploy",
     build: `(cd examples/gleam_worker && gleam build --target erlang)
@@ -232,18 +223,13 @@ mix midgard.deploy --artifact examples/gleam_worker/amber_worker.midgard`,
 mix archive.install hex midgard_cli --force`,
     setupNote: "Requires Elixir/Mix, Rebar3, and OTP 29. Rebar3 installs the pinned SDK and plugin from rebar.config.",
     sourceTitle: "Handle a request",
-    source: `route(<<"GET">>, <<"/hello">>) -> reply(200, hello(<<"world">>));
-route(<<"GET">>, <<"/hello/", Name/binary>>) ->
-    case valid_name(Name) of
-        true -> reply(200, hello(Name));
-        false -> reply(404, <<"Not found\\n">>)
-    end;
+    source: `route(<<"GET">>, <<"/">>) -> reply(200, <<"Hello Joe!">>);
 route(_, _) -> reply(404, <<"Not found\\n">>).
 
 reply(Status, Body) ->
     midgard:encode_response(#midgard_response{status = Status, body = Body}).`,
     sourceFile: "examples/erlang_worker/src/erlang_worker.erl",
-    sourceNote: "Tiny handler excerpt for illustration; the linked example shows the complete worker.",
+    sourceNote: "Minimal route example: GET / returns Hello Joe! The full worker also decodes the request frame.",
     sourceUrl: "https://github.com/leostera/midgard/blob/main/examples/erlang_worker/src/erlang_worker.erl",
     buildTitle: "Build and deploy",
     build: `(cd examples/erlang_worker && rebar3 eunit)
