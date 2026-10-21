@@ -169,73 +169,103 @@ type QuickstartExample = {
 
 const quickstartLanguages: QuickstartLanguage[] = ["elixir", "gleam", "erlang"];
 
+const archives = `mix archive.install hex midgard_packer --force
+mix archive.install hex midgard_cli --force`;
+
 const quickstartExamples: Record<QuickstartLanguage, QuickstartExample> = {
   elixir: {
     label: "Elixir",
     setupTitle: "Install and scaffold",
-    setup: `mix archive.install hex midgard_cli --force
+    setup: `# Elixir main at the runtime's pinned revision, on OTP 29
+git clone https://github.com/elixir-lang/elixir.git /tmp/midgard-elixir
+git -C /tmp/midgard-elixir checkout 13299af2b91a6aff7e430f25849f586c02b3231f
+make -C /tmp/midgard-elixir compile install PREFIX=/tmp/midgard-toolchain
+export PATH="/tmp/midgard-toolchain/bin:$PATH"
+
+mix archive.install hex midgard_cli --force
 mix midgard.new hello_worker
-cd hello_worker
-mix deps.get`,
-    setupNote: "Use OTP 29 and the pinned Elixir. The scaffold fetches the published midgard and midgard_packer packages from Hex.",
+cd hello_worker && mix deps.get`,
+    setupNote: "Elixir workers must be compiled by the same Elixir revision the runtime uses. The scaffold fetches midgard and midgard_packer from Hex.",
     sourceTitle: "Handle a request",
-    source: `def handle_request(%Midgard.Request{method: "GET", path: "/"}) do
-  {200, "Hello Joe!"}
+    source: `defmodule HelloWorker do
+  use Midgard.Worker
+
+  @impl true
+  def handle_request(%Midgard.Request{method: "GET", path: "/"}) do
+    {200, "Hello Joe!"}
+  end
 end`,
     sourceFile: "lib/hello_worker.ex",
-    sourceNote: "Minimal handler example: GET / returns Hello Joe! The full scaffold adds tests and deployment setup.",
+    sourceNote: "Trimmed from the generated worker, which also answers /hello and /hello/:name and comes with tests.",
     sourceUrl: "https://github.com/leostera/midgard/blob/main/apps/midgard_cli/lib/midgard/cli/generator.ex",
     buildTitle: "Test and deploy",
     build: `mix test
-mix midgard.deploy`,
-    buildNote: "The scaffold is complete and its README includes the full build and deployment instructions."
+mix midgard.deploy
+curl https://hello-worker-<id>.midgard.leostera.dev/`,
+    buildNote: "The deploy prints your worker's URL. Every deploy gets a new one."
   },
   gleam: {
     label: "Gleam",
-    setupTitle: "Get the toolchain",
-    setup: `git clone https://github.com/leostera/midgard.git
-cd midgard
-mix archive.install hex midgard_packer --force
-mix archive.install hex midgard_cli --force`,
-    setupNote: "Requires Gleam, Elixir/Mix, and OTP 29. The checked-in example fetches the published midgard_gleam SDK from Hex.",
+    setupTitle: "Install and create a project",
+    setup: `${archives}
+
+gleam new hello_worker && cd hello_worker
+gleam remove gleam_stdlib
+gleam add midgard_gleam@0.3.0`,
+    setupNote: "Requires Gleam, Elixir, and OTP 29. Gleam can't run external build tools yet, so packaging and deploys use Midgard's Mix archives. Removing gleam_stdlib keeps the shipment to your code and the SDK.",
     sourceTitle: "Handle a request",
-    source: `fn dispatch(method: BitArray, path: BitArray) -> BitArray {
-  case method, path {
-    <<"GET":utf8>>, <<"/":utf8>> ->
-      response(200, <<"Hello Joe!":utf8>>)
-    _, _ -> not_found()
+    source: `import midgard
+
+pub fn handle(input: BitArray) -> BitArray {
+  midgard.serve(input, handle_request)
+}
+
+pub fn handle_request(request: midgard.Request) -> midgard.Response {
+  case request.method, request.path {
+    <<"GET":utf8>>, <<"/":utf8>> -> midgard.Response(200, <<"Hello Joe!":utf8>>)
+    _, _ -> midgard.Response(404, <<"Not found\\n":utf8>>)
   }
 }`,
-    sourceFile: "examples/gleam_worker/src/gleam_worker.gleam",
-    sourceNote: "Minimal route example: GET / returns Hello Joe! The full worker also decodes the request frame.",
-    sourceUrl: "https://github.com/leostera/midgard/blob/main/examples/gleam_worker/src/gleam_worker.gleam",
+    sourceFile: "src/hello_worker.gleam",
+    sourceNote: "The complete worker. midgard.serve decodes each request and encodes your response.",
+    sourceUrl: "https://github.com/leostera/midgard/tree/main/examples/gleam_worker",
     buildTitle: "Build and deploy",
-    build: `(cd examples/gleam_worker && gleam build --target erlang)
-mix packer.pack --project examples/gleam_worker --gleam \\
-  --entry gleam_worker --function handle --protocol midgard.bytes.v1
-mix midgard.deploy --artifact examples/gleam_worker/gleam_worker.midgard`,
-    buildNote: "Build and deploy the worker; each deployment gets its own URL."
+    build: `mix packer.pack --project . --gleam \\
+  --entry hello_worker --function handle --protocol midgard.bytes.v1
+mix midgard.deploy --artifact hello_worker.midgard`,
+    buildNote: "The deploy prints your worker's URL. Every deploy gets a new one."
   },
   erlang: {
     label: "Erlang",
-    setupTitle: "Get the toolchain",
-    setup: `mix archive.install hex midgard_packer --force
-mix archive.install hex midgard_cli --force`,
-    setupNote: "Requires Elixir/Mix, Rebar3, and OTP 29. Rebar3 installs the pinned SDK and plugin from rebar.config.",
-    sourceTitle: "Handle a request",
-    source: `route(<<"GET">>, <<"/">>) -> reply(200, <<"Hello Joe!">>);
-route(_, _) -> reply(404, <<"Not found\\n">>).
+    setupTitle: "Install and create a project",
+    setup: `${archives}
 
-reply(Status, Body) ->
-    midgard:encode_response(#midgard_response{status = Status, body = Body}).`,
-    sourceFile: "examples/erlang_worker/src/erlang_worker.erl",
-    sourceNote: "Minimal route example: GET / returns Hello Joe! The full worker also decodes the request frame.",
-    sourceUrl: "https://github.com/leostera/midgard/blob/main/examples/erlang_worker/src/erlang_worker.erl",
-    buildTitle: "Build and deploy",
-    build: `(cd examples/erlang_worker && rebar3 eunit)
-cd examples/erlang_worker
-rebar3 midgard deploy`,
-    buildNote: "Build and deploy the worker; each deployment gets its own URL."
+rebar3 new lib hello_worker && cd hello_worker
+cat > rebar.config <<'EOF'
+{erl_opts, [debug_info]}.
+{deps, [{midgard, "0.3.0", {pkg, midgard_erlang}}]}.
+{project_plugins, [{rebar3_midgard, "0.3.0"}]}.
+{midgard, [{entry, hello_worker}, {function, handle},
+           {protocol, "midgard.bytes.v1"}]}.
+EOF`,
+    setupNote: "Requires Rebar3, Elixir, and OTP 29. The rebar3_midgard plugin hands packaging and deploys to Midgard's Mix archives.",
+    sourceTitle: "Handle a request",
+    source: `-module(hello_worker).
+-include_lib("midgard/include/midgard.hrl").
+-export([handle/1]).
+
+handle(Input) -> midgard:serve(Input, fun handle_request/1).
+
+handle_request(#midgard_request{method = <<"GET">>, path = <<"/">>}) ->
+    #midgard_response{status = 200, body = <<"Hello Joe!">>};
+handle_request(_Request) ->
+    #midgard_response{status = 404, body = <<"Not found\\n">>}.`,
+    sourceFile: "src/hello_worker.erl",
+    sourceNote: "The complete worker. midgard:serve/2 decodes each request and encodes your response.",
+    sourceUrl: "https://github.com/leostera/midgard/tree/main/examples/erlang_worker",
+    buildTitle: "Deploy",
+    build: `rebar3 midgard deploy`,
+    buildNote: "Compiles with Rebar3, packages the worker, and prints its URL. Every deploy gets a new one."
   },
 };
 
@@ -271,7 +301,7 @@ function Quickstart() {
     <section className="deploy-section" id="deploy">
       <div className="section-heading">
         <h2>From worker code to public URL</h2>
-        <p>Pick a language to see a handler example and how to deploy a worker. Demo deployments are public; don’t include secrets or private code.</p>
+        <p>Pick a language, write a handler, and deploy it to a public URL. Deployments are public, so don’t include secrets or private code.</p>
       </div>
       <div className="terminal-card">
         <div className="quickstart-tabs" role="tablist" aria-label="Worker language">
@@ -298,13 +328,13 @@ function Quickstart() {
             <div>
               <h3><span>01</span>{example.setupTitle}</h3>
               <HighlightedCode source={example.setup} language="bash" />
-              <small>{example.setupNote} {activeLanguage === "elixir" && <a href="https://github.com/leostera/midgard#install-and-deploy" target="_blank" rel="noreferrer">Toolchain instructions</a>}</small>
+              <small>{example.setupNote}</small>
             </div>
             <div>
               <h3><span>02</span>{example.sourceTitle}</h3>
               <small className="code-filename">{example.sourceFile}</small>
               <HighlightedCode source={example.source} language={activeLanguage} />
-              <small>{example.sourceNote} <a href={example.sourceUrl} target="_blank" rel="noreferrer">Open full example</a></small>
+              <small>{example.sourceNote} <a href={example.sourceUrl} target="_blank" rel="noreferrer">See the example project</a></small>
             </div>
             <div>
               <h3><span>03</span>{example.buildTitle}</h3>
@@ -318,11 +348,31 @@ function Quickstart() {
   );
 }
 
+function Limitations() {
+  return (
+    <section className="limits-section" id="limits">
+      <div className="section-heading">
+        <h2>Before you try it</h2>
+        <p>Midgard is a tech demo, not a hosting service. Here’s what that means in practice.</p>
+      </div>
+      <ul className="limits-list">
+        <li><strong>Bleeding-edge toolchain.</strong> Requires OTP 29. Elixir workers also need Elixir <code>main</code> built at the runtime’s pinned revision.</li>
+        <li><strong>Public and anonymous.</strong> There are no accounts. Anyone with a worker’s URL can call it, so don’t deploy secrets or private code.</li>
+        <li><strong>Immutable deploys.</strong> Every deploy gets a new URL. You can’t update or delete an existing deployment.</li>
+        <li><strong>Small, shared limits.</strong> Up to 32 live workers and 24 MB per upload, with rate limits on uploads and requests. Demos may be cleared at any time.</li>
+        <li><strong>Not a full OTP node.</strong> Workers run on libbeam, a separate BEAM runtime, so many libraries won’t run yet. Each shipment is checked before it’s admitted, but this is not a hardened sandbox.</li>
+        <li><strong>Feedback welcome.</strong> Found a bug or have an idea? <a href="https://github.com/leostera/midgard/issues">Open an issue on GitHub</a>.</li>
+      </ul>
+    </section>
+  );
+}
+
 function Landing() {
   return (
     <>
       <section className="hero">
         <div className="hero-copy">
+          <p className="demo-tag">Tech demo · OTP 29 · Elixir main</p>
           <h1>Serverless <RotatingLanguage /></h1>
           <p className="hero-intro">Deploy Elixir, Erlang, and Gleam workers. Every deployment gets its own immutable public URL.</p>
           <div className="hero-actions">
@@ -333,6 +383,8 @@ function Landing() {
       </section>
 
       <Quickstart />
+
+      <Limitations />
 
       <section className="inventory-preview">
         <div className="inventory-title"><h2>Try the public demos</h2><a href="/workers">Browse all demos</a></div>

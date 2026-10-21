@@ -2,7 +2,7 @@
 
 Build Elixir workers with `Midgard.Worker`, typed request and response structs, and the `midgard.bytes.v1` binary entrypoint. Your worker defines its own routes and response behavior; the SDK handles the framework boundary.
 
-> Midgard is a tech demo. Elixir workers require OTP 29 and the latest Elixir (`main`) at the runtime's pinned revision; see the [toolchain instructions](https://github.com/leostera/midgard#install-and-deploy).
+> Midgard is a tech demo. Elixir workers require OTP 29 and the latest Elixir (`main`) at the runtime's pinned revision; see the [toolchain instructions](https://github.com/leostera/midgard#elixir).
 
 ## Install
 

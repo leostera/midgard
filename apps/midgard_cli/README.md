@@ -2,7 +2,7 @@
 
 Scaffold Elixir worker projects and add the local build-and-deploy commands. The CLI helps turn a worker project into a public worker URL; compilation and tests run on your development machine.
 
-> Midgard is a tech demo. Elixir workers require OTP 29 and the latest Elixir (`main`) at the runtime's pinned revision; see the [toolchain instructions](https://github.com/leostera/midgard#install-and-deploy).
+> Midgard is a tech demo. Elixir workers require OTP 29 and the latest Elixir (`main`) at the runtime's pinned revision; see the [toolchain instructions](https://github.com/leostera/midgard#elixir).
 
 ## Start a project
 

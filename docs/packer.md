@@ -1,6 +1,6 @@
 # Package your worker
 
-Packer turns your compiled Elixir, Erlang, or Gleam worker into an inspectable `<app>.midgard/` artifact: the worker entrypoint, original BEAM names, compiled dependencies, and checksums together in one handoff. Use it to see exactly what a future libbeam Isolate host would need to admit. **Packaging is available across these languages; the Midgard request-handling API is Elixir-only for now.**
+Packer turns your compiled Elixir, Erlang, or Gleam worker into an inspectable `<app>.midgard/` artifact: the worker entrypoint, original BEAM names, compiled dependencies, and checksums together in one handoff. Use it to see exactly what the libbeam host will admit. Elixir, Erlang, and Gleam each have a Midgard SDK for handling requests.
 
 You need Elixir 1.19 and OTP 27+ for the shared Packer/deploy archives, plus Rebar3 or Gleam for those project types. Install the published tooling archives once; you do not need a Midgard repository checkout:
 
@@ -42,7 +42,7 @@ mix packer.pack --project /path/to/app --gleam --entry gleam_worker \
   --function handle --protocol raw.bytes.v1
 ```
 
-Use `--gleam-bin PATH` to choose a compiler. Check in `manifest.toml`; the production Erlang shipment's `.app` lists determine which dependency BEAMs are included. A generated CLI launcher is excluded, but declared dependencies are not. Gleam supplies its own binary entrypoint; this does not import the Elixir worker API. Gleam currently has no documented third-party task-provider interface; a Gleam-specific Midgard external command is under investigation. See the [Gleam example](../examples/gleam_worker/README.md).
+Use `--gleam-bin PATH` to choose a compiler. Check in `manifest.toml`; the production Erlang shipment's `.app` lists determine which dependency BEAMs are included. A generated CLI launcher is excluded, but declared dependencies are not. Gleam workers expose their own binary entrypoint, typically via `midgard.serve` from `midgard_gleam`. Gleam has no plugin mechanism for external build commands yet, so packaging uses this Mix task. Remove `gleam_stdlib` if your worker doesn't use it; every declared production dependency is packaged. See the [Gleam example](../examples/gleam_worker/README.md).
 
 All three commands write `<app>.midgard/` by default; pass `--output DIR` to choose a destination. The artifact has a `manifest.json` and `modules/` directory. Mix/rebar3 use artifact format v1; Gleam uses v2.
 

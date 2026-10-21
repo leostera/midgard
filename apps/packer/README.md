@@ -2,7 +2,7 @@
 
 Turn a compiled Mix, Rebar3, or Erlang-target Gleam worker into a `.midgard` package. Packer collects the worker's exact-name BEAM modules and compiled dependencies, then records the entrypoint, protocol, ownership, compiler metadata, and checksums in a manifest.
 
-> Midgard is a tech demo. Elixir workers require OTP 29 and the latest Elixir (`main`) at the runtime's pinned revision; see the [toolchain instructions](https://github.com/leostera/midgard#install-and-deploy).
+> Midgard is a tech demo. Elixir workers require OTP 29 and the latest Elixir (`main`) at the runtime's pinned revision; see the [toolchain instructions](https://github.com/leostera/midgard#elixir).
 
 ## Build and inspect
 

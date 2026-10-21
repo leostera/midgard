@@ -97,6 +97,17 @@ button, a { -webkit-tap-highlight-color: transparent; }
   font-size: 16px;
   line-height: 1.65;
 }
+.demo-tag {
+  width: fit-content;
+  margin: 0 0 18px;
+  padding: 5px 10px;
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font: 600 11px/1.4 var(--mono);
+  letter-spacing: .02em;
+}
 .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 25px; }
 .button {
   min-height: 42px;
@@ -192,6 +203,31 @@ button, a { -webkit-tap-highlight-color: transparent; }
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.limits-section {
+  width: min(100%, 1200px);
+  margin: 0 auto;
+  padding: 12px var(--content-gutter) 76px;
+  display: grid;
+  grid-template-columns: .8fr 1.2fr;
+  align-items: start;
+  gap: 52px;
+}
+.limits-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+.limits-list li {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.limits-list strong { color: var(--text); }
+.limits-list code { font: 12px var(--mono); }
+.limits-list a { color: var(--accent-ink); text-decoration: underline; }
 .inventory-preview { padding-top: 12px; padding-bottom: 86px; }
 .inventory-title {
   display: flex;
@@ -286,6 +322,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .hero h1 { font-size: clamp(48px, 12vw, 62px); }
   .hero-intro { max-width: 54ch; font-size: 15px; }
   .deploy-section { padding: 54px 24px; grid-template-columns: 1fr; gap: 22px; }
+  .limits-section { padding: 12px 24px 54px; grid-template-columns: 1fr; gap: 22px; }
   .inventory-preview { padding: 18px 24px 64px; }
   .inventory-title { align-items: start; }
   .inventory-title h2 { font-size: 24px; }
