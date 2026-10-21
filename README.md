@@ -5,7 +5,7 @@
 > [!IMPORTANT]
 > **Midgard is a tech demo.** It requires **OTP 29**. Elixir workers also need the latest Elixir (`main`) built at the runtime's pinned revision. Deployments are public and anonymous; see [Before you try it](#before-you-try-it).
 
-Workers run on [libbeam](https://github.com/leostera/libbeam), a separate BEAM runtime. Midgard builds your worker locally, packages its exact BEAM modules and compiled dependencies with a checksummed manifest, and uploads that shipment. The platform verifies the shipment and admits the whole BEAM group to libbeam before it serves any requests.
+Workers run on [libbeam](https://github.com/leostera/libbeam). Midgard builds your worker locally, packages its exact BEAM modules and compiled dependencies with a checksummed manifest, and uploads that shipment. The platform verifies the shipment and admits the whole BEAM group to libbeam before it serves any requests.
 
 ## Quickstart
 
@@ -135,8 +135,8 @@ rebar3 midgard deploy
 - **Bleeding-edge toolchain.** Requires OTP 29. Elixir workers also need Elixir `main` built at the runtime's pinned revision; Packer rejects other Elixir builds before uploading.
 - **Public and anonymous.** There are no accounts. Anyone with a worker's URL can call it, so don't deploy secrets or private code.
 - **Immutable deploys.** Every deploy gets a new URL. You can't update or delete an existing deployment.
-- **Small, shared limits.** Up to 32 live workers and 24 MB per upload, with rate limits on uploads and requests. When the demo is full, each new deploy replaces the oldest worker, and demos may be cleared at any time.
-- **Not a full OTP node.** libbeam is a separate BEAM runtime, so many libraries won't run yet. Each shipment is checked before it's admitted, but this is not a hardened sandbox.
+- **Small, shared limits.** Uploads are capped at 24 MB, and uploads and requests are rate-limited. Demos may be cleared at any time.
+- **Not a full OTP node.** Workers run on [libbeam](https://github.com/leostera/libbeam), so many libraries won't run yet. Each shipment is checked before it's admitted, but this is not a hardened sandbox.
 - **Trusted builds only.** Compilers, dependencies, and macros run on your machine with your privileges.
 
 Found a bug or have an idea? [Open an issue](https://github.com/leostera/midgard/issues).

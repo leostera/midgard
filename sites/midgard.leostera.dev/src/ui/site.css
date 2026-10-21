@@ -97,17 +97,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
   font-size: 16px;
   line-height: 1.65;
 }
-.demo-tag {
-  width: fit-content;
-  margin: 0 0 18px;
-  padding: 5px 10px;
-  border: 1px solid var(--accent-border);
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent-ink);
-  font: 600 11px/1.4 var(--mono);
-  letter-spacing: .02em;
-}
 .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 25px; }
 .button {
   min-height: 42px;

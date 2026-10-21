@@ -5,7 +5,21 @@ const workerDomain = ".midgard.leostera.dev";
 const backend = "http://127.0.0.1:4000";
 const mediaType = "application/vnd.midgard.shipment.v1";
 const maxUpload = 24_000_000;
-const maxWorkers = 32;
+// Demo workers removed by the operator. They are deleted, and their domains
+// detached, the next time the platform restores its shipments.
+const retiredWorkers = new Set([
+	// The Gleam example was renamed from amber_worker to gleam_worker.
+	"amber_worker_16f327441c6fc766", "amber_worker_5e8423354ac27bd9", "amber_worker_76885c9c95f26ce3",
+	"amber_worker_7d8f5a5973a6cf8e", "amber_worker_7ea77a8f12d52464", "amber_worker_898bc883af7a6c56",
+	"amber_worker_b3d938caa5337ab8", "amber_worker_dc6d87012e962570", "amber_worker_e9dfb376334b222c",
+	// Superseded example deployments that predate GET / => "Hello Joe!".
+	"erlang_worker_021a8a3f076ceb0b", "erlang_worker_39058410fca0a860", "erlang_worker_5d88f8d4c07a3841",
+	"erlang_worker_80f58bf3c7bb0a20", "erlang_worker_8e7e765cd5b8f5d4", "erlang_worker_d10ea914d31ec739",
+	"gleam_worker_ae647f68f90eaef3",
+	// Release smoke tests.
+	"hello_erlang_bb2b5867717f92c3", "hello_worker_0a6c12c4cf294489", "hello_worker_936519a46c139dc6",
+	"hello_worker_a449b4ee524edc38", "hello_worker_ex_064d5579c9f280da", "hello_worker_gleam_586d4ee1a5a33c49",
+]);
 const chunkSize = 256_000;
 // Renew the ten-minute idle period for both newly started and surviving
 // Containers because a DO restart loses its inactivity setting.
@@ -118,6 +132,7 @@ export class NativeRuntime extends DurableObject<Env> {
 		const container = this.ctx.container;
 		if (!container) throw new Error("Platform container binding is unavailable");
 		const sql = this.ctx.storage.sql;
+		await this.removeRetiredWorkers();
 		const saved = sql.exec<Saved>("SELECT slug, app, digest, size, checksum, domain_attached FROM shipments WHERE active = 1 ORDER BY rowid").toArray();
 		// A DO eviction must not discard healthy, already-admitted Isolates. The
 		// host proves the full live digest set; missing or stale handles still
@@ -283,9 +298,6 @@ export class NativeRuntime extends DurableObject<Env> {
 		try {
 			await this.ensureReady();
 			const sql = this.ctx.storage.sql;
-			// A full demo stays open: once the new worker is admitted, the oldest
-			// one is removed to make room (first in, first out).
-			const full = sql.exec<{ n: number }>("SELECT count(*) AS n FROM shipments WHERE active = 1").one().n >= maxWorkers;
 			const bytes = await boundedBody(request);
 			if (!bytes) return text("Shipment exceeds the 24 MB demo limit", 413);
 			route = `${app.slice(0, 23)}_${hex(crypto.getRandomValues(new Uint8Array(8)))}`;
@@ -311,7 +323,6 @@ export class NativeRuntime extends DurableObject<Env> {
 			const hostname = workerHostname(route);
 			await this.attachWorkerDomain(hostname);
 			sql.exec("UPDATE shipments SET digest = ?, domain_attached = 1, active = 1 WHERE slug = ? AND active = 0", result.digest, route);
-			if (full) await this.evictOldest(route);
 			return Response.json({ ...result, path: `https://${hostname}/` }, {
 				status: response.status,
 				headers: { "cache-control": "no-store" },
@@ -330,21 +341,18 @@ export class NativeRuntime extends DurableObject<Env> {
 		}
 	}
 
-	private async evictOldest(keep: string): Promise<void> {
+	// Retired workers are deleted before restore. A surviving Container still
+	// holding them no longer matches the live set, so it is replaced and only
+	// the remaining shipments are re-admitted.
+	private async removeRetiredWorkers(): Promise<void> {
 		const sql = this.ctx.storage.sql;
-		const surplus = sql.exec<{ n: number }>("SELECT count(*) AS n FROM shipments WHERE active = 1").one().n - maxWorkers;
-		if (surplus <= 0) return;
-		const evicted = sql
-			.exec<{ slug: string }>("SELECT slug FROM shipments WHERE active = 1 AND slug != ? ORDER BY rowid LIMIT ?", keep, surplus)
-			.toArray();
-		for (const { slug } of evicted) {
+		const saved = sql.exec<{ slug: string }>("SELECT slug FROM shipments").toArray();
+		for (const { slug } of saved.filter((row) => retiredWorkers.has(row.slug))) {
 			this.ctx.storage.transactionSync(() => {
 				sql.exec("DELETE FROM chunks WHERE slug = ?", slug);
 				sql.exec("DELETE FROM shipments WHERE slug = ?", slug);
 			});
-			console.log(JSON.stringify({ event: "worker_evicted", slug }));
-			// The Container keeps the Isolate until its next restore, but calls are
-			// refused at the edge from now on, so the domain is only tidied up.
+			console.log(JSON.stringify({ event: "worker_retired", slug }));
 			await this.detachWorkerDomain(workerHostname(slug)).catch((error) => {
 				console.warn(JSON.stringify({ event: "domain_detach_failed", slug, error: String(error) }));
 			});
@@ -420,7 +428,7 @@ export class NativeRuntime extends DurableObject<Env> {
 		if (this.busy && (url.pathname === "/" || url.pathname.startsWith("/workers/"))) return text("Inventory is updating", 503);
 		const run = url.pathname.match(/^\/run\/([a-z][a-z0-9_]*_[0-9a-f]{16})(?:\/|$)/);
 		if (run && !this.ctx.storage.sql.exec("SELECT 1 FROM shipments WHERE slug = ? AND active = 1", run[1]).toArray().length) {
-			return text("Worker not found. When the demo is full, the oldest workers are removed to make room.", 404);
+			return text("Worker not found", 404);
 		}
 		await this.ensureReady();
 		const upstream = new Request(`${backend}${url.pathname}${url.search}`, request);

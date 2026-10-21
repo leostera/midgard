@@ -7,7 +7,6 @@ defmodule Midgard.Platform.Workspace do
   """
   use GenServer
   alias Midgard.Platform.Traffic
-  @max_workers 100
   @max_source 65_536
   @slug ~r/\A[a-z][a-z0-9_]{0,39}\z/
 
@@ -110,9 +109,6 @@ defmodule Midgard.Platform.Workspace do
       Map.has_key?(state.workers, slug) ->
         {:reply, {:error, :already_exists}, state}
 
-      map_size(state.workers) >= @max_workers ->
-        {:reply, {:error, :worker_limit}, state}
-
       true ->
         path = Path.join([state.root, "workers", slug])
 
@@ -142,9 +138,6 @@ defmodule Midgard.Platform.Workspace do
       Map.has_key?(state.workers, slug) ->
         workers = Map.update!(state.workers, slug, &%{&1 | busy: true})
         {:reply, :ok, %{state | workers: workers}}
-
-      map_size(state.workers) >= @max_workers ->
-        {:reply, {:error, :worker_limit}, state}
 
       true ->
         path = Path.join([state.root, "workers", slug])

@@ -295,65 +295,47 @@ test("anonymous uploads receive immutable routes and recover exact stored bytes"
 	expect(requests[6]?.headers.get("x-midgard-internal-upload")).toBeNull();
 });
 
-test("a full demo admits the new worker, then removes the oldest one", async () => {
+test("there is no cap on the number of live workers", async () => {
 	attachedDomains.clear();
-	detachedDomains.length = 0;
-	const { ctx, container, requests } = runtimeHarness();
+	const { ctx, container } = runtimeHarness();
 	const runtime = new NativeRuntime(ctx, env);
-	const deploy = async (app: string) => {
-		const response = await runtime.fetch(new Request(`https://midgard.leostera.dev/api/deployments/${app}`, {
+	for (let index = 0; index < 40; index++) {
+		const response = await runtime.fetch(new Request(`https://midgard.leostera.dev/api/deployments/app${index}`, {
 			method: "POST", headers: { "content-type": "application/vnd.midgard.shipment.v1" }, body: new Uint8Array([1]),
 		}));
 		expect(response.status).toBe(201);
-		return (await response.json() as { slug: string }).slug;
-	};
-	const slugs: string[] = [];
-	for (let index = 0; index < 32; index++) slugs.push(await deploy(`app${index}`));
-	expect(detachedDomains).toEqual([]);
-
-	const newest = await deploy("newest");
-	const listed = await (await runtime.fetch(new Request("https://midgard.leostera.dev/api/workers"))).json() as { workers: Array<{ slug: string }> };
-	const live = listed.workers.map((worker) => worker.slug);
-	expect(live.length).toBe(32);
-	expect(live).toContain(newest);
-	expect(live).not.toContain(slugs[0]);
-	expect(live).toContain(slugs[1]);
-	expect(detachedDomains).toEqual([`${slugs[0]!.replaceAll("_", "-")}.midgard.leostera.dev`]);
-	expect(ctx.storage.sql.exec("SELECT count(*) AS n FROM chunks WHERE slug = ?", slugs[0]).one()).toEqual({ n: 0 });
-
-	// The evicted route is refused at the edge, even though the Container still holds it.
-	const before = requests.length;
-	const gone = await runtime.fetch(new Request(`https://midgard.leostera.dev/run/${slugs[0]}/`));
-	expect(gone.status).toBe(404);
-	expect(await gone.text()).toContain("oldest workers are removed");
-	expect(requests.length).toBe(before);
-	expect(await (await runtime.fetch(new Request(`https://midgard.leostera.dev/run/${newest}/`))).text()).toBe("Hello!");
+	}
+	const listed = await (await runtime.fetch(new Request("https://midgard.leostera.dev/api/workers"))).json() as { workers: unknown[] };
+	expect(listed.workers.length).toBe(40);
 	container.running = false;
 });
 
-test("a failed admission never evicts an existing worker", async () => {
+test("retired workers are deleted, detached, and refused on restore", async () => {
 	attachedDomains.clear();
 	detachedDomains.length = 0;
-	const { ctx, container } = runtimeHarness();
+	const { ctx, container, requests, admitted } = runtimeHarness();
 	const runtime = new NativeRuntime(ctx, env);
-	for (let index = 0; index < 32; index++) {
-		const ok = await runtime.fetch(new Request(`https://midgard.leostera.dev/api/deployments/app${index}`, {
-			method: "POST", headers: { "content-type": "application/vnd.midgard.shipment.v1" }, body: new Uint8Array([1]),
-		}));
-		expect(ok.status).toBe(201);
-	}
-	const port = container.getTcpPort(4000);
-	container.getTcpPort = () => ({
-		fetch: async (request: Request) => new URL(request.url).pathname.startsWith("/api/deployments/") &&
-			new URL(request.url).pathname !== "/api/deployments/state"
-			? new Response("rejected\n", { status: 422 })
-			: port.fetch(request),
-	});
-	const rejected = await runtime.fetch(new Request("https://midgard.leostera.dev/api/deployments/broken", {
+	const kept = await runtime.fetch(new Request("https://midgard.leostera.dev/api/deployments/gleam_worker", {
 		method: "POST", headers: { "content-type": "application/vnd.midgard.shipment.v1" }, body: new Uint8Array([1]),
 	}));
-	expect(rejected.status).toBe(422);
-	expect(ctx.storage.sql.exec("SELECT count(*) AS n FROM shipments WHERE active = 1").one()).toEqual({ n: 32 });
-	expect(detachedDomains).toEqual([]);
+	const keptSlug = (await kept.json() as { slug: string }).slug;
+	const retired = "amber_worker_16f327441c6fc766";
+	ctx.storage.sql.exec("INSERT INTO shipments (slug, app, digest, size, checksum, active) VALUES (?, 'amber_worker', ?, 1, 'x', 1)", retired, "a".repeat(64));
+	ctx.storage.sql.exec("INSERT INTO chunks (slug, part, data) VALUES (?, 0, ?)", retired, new Uint8Array([1]).buffer);
+	admitted.set(retired, "a".repeat(64));
+	attachedDomains.add("amber-worker-16f327441c6fc766.midgard.leostera.dev");
+
+	// A new Durable Object instance (as after a deploy) prunes before restoring.
+	const restarted = new NativeRuntime(ctx, env);
+	const listed = await (await restarted.fetch(new Request("https://midgard.leostera.dev/api/workers"))).json() as { workers: Array<{ slug: string }> };
+	expect(listed.workers.map((worker) => worker.slug)).toEqual([keptSlug]);
+	expect(ctx.storage.sql.exec("SELECT count(*) AS n FROM chunks WHERE slug = ?", retired).one()).toEqual({ n: 0 });
+	expect(detachedDomains).toEqual(["amber-worker-16f327441c6fc766.midgard.leostera.dev"]);
+	expect(admitted.has(retired)).toBe(false);
+
+	const before = requests.length;
+	expect((await restarted.fetch(new Request(`https://midgard.leostera.dev/run/${retired}/`))).status).toBe(404);
+	expect(requests.length).toBe(before);
+	expect(await (await restarted.fetch(new Request(`https://midgard.leostera.dev/run/${keptSlug}/`))).text()).toBe("Hello!");
 	container.running = false;
 });
