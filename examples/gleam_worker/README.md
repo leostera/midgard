@@ -9,7 +9,7 @@ An Erlang-target Gleam project that uses the `midgard_gleam` SDK from Hex. `glea
 | `GET /hello/joe` | `hello, joe!` |
 | anything else | 404 |
 
-[Try the deployed Gleam example](https://gleam-worker-ae647f68f90eaef3.midgard.leostera.dev/).
+[Try the deployed Gleam example](https://gleam-worker-553f63ed27a67575.midgard.leostera.dev/).
 
 > Midgard is a tech demo. It requires OTP 29.
 

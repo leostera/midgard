@@ -9,7 +9,7 @@ A standalone Rebar3 application that uses the `midgard_erlang` SDK and the `reba
 | `GET /hello/joe` | `hello, joe!` |
 | anything else | 404 |
 
-[Try the deployed Erlang example](https://erlang-worker-5d88f8d4c07a3841.midgard.leostera.dev/).
+[Try the deployed Erlang example](https://erlang-worker-b55793b2b7009042.midgard.leostera.dev/).
 
 > Midgard is a tech demo. It requires OTP 29.
 

@@ -9,7 +9,7 @@ Workers run on [libbeam](https://github.com/leostera/libbeam). Midgard builds yo
 
 ## Quickstart
 
-Each quickstart ends with a worker that answers `GET /` with `Hello Joe!`.
+Each quickstart ends with a worker that answers `GET /` with `Hello Joe!`. See them running: [Elixir](https://elixir-worker-55c7a1ccc4fd91b9.midgard.leostera.dev/), [Erlang](https://erlang-worker-b55793b2b7009042.midgard.leostera.dev/), [Gleam](https://gleam-worker-553f63ed27a67575.midgard.leostera.dev/).
 
 ### Elixir
 
