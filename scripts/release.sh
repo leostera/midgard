@@ -232,6 +232,25 @@ cmd_deploy_site() {
   [[ "$bundle" == *"midgard_gleam@$version"* ]] ||
     die "live bundle $asset does not mention midgard_gleam@$version"
   echo "Live: https://midgard.leostera.dev ($asset)"
+
+  # `cf deploy` reconciles the Worker's custom domains to the config, which
+  # detaches every deployed worker's hostname. Listing workers makes the
+  # Durable Object re-attach them; then check the linked demos answer.
+  step "Re-attaching worker domains"
+  local inventory demo body attempt
+  inventory="$(curl -fsS https://midgard.leostera.dev/api/workers)"
+  echo "$(grep -o '"slug"' <<< "$inventory" | wc -l | tr -d ' ') workers listed"
+  for demo in elixir-worker-55c7a1ccc4fd91b9 erlang-worker-b55793b2b7009042 gleam-worker-553f63ed27a67575; do
+    for attempt in $(seq 1 60); do
+      # Resolve through the site's edge address: a public resolver asked too
+      # early would cache NXDOMAIN for 30 minutes.
+      body="$(curl -s -m 20 --resolve "$demo.midgard.leostera.dev:443:$(dig +short midgard.leostera.dev | head -1)" "https://$demo.midgard.leostera.dev/" || true)"
+      [ "$body" = "Hello Joe!" ] && break
+      [ "$attempt" -lt 60 ] || die "$demo does not answer after the site deploy"
+      sleep 2
+    done
+    echo "OK  https://$demo.midgard.leostera.dev/"
+  done
 }
 
 cmd_all() {
