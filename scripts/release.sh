@@ -141,7 +141,7 @@ cmd_publish() {
   mix_user="$(mix hex.user whoami 2>&1 | strip_ansi | grep -vE '^\s*$|notice|Failed|error|No authenticated' | tail -1 || true)"
   [ -n "$mix_user" ] && ! mix hex.user whoami 2>&1 | grep -qE 'Failed to auth|auth_error|No authenticated' ||
     die "not signed in to Hex for Mix; run: mix hex.user auth"
-  rebar3_user="$(rebar3 hex user whoami 2>&1 | strip_ansi | awk '$1 == "hexpm" { print $2 }')"
+  rebar3_user="$(cd packages/rebar3_midgard && rebar3 hex user whoami 2>&1 | strip_ansi | awk '$1 == "hexpm" { print $2 }')"
   [ -n "$rebar3_user" ] || die "not signed in to Hex for Rebar3; run: rebar3 hex user auth"
   echo "Mix: $mix_user · Rebar3: $rebar3_user"
   echo "Gleam will ask for its own credentials (or set HEXPM_API_KEY)."
