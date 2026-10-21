@@ -42,11 +42,14 @@ deploy() {
 }
 
 check_hello() {
-  local url="$1" host ip body=""
+  local url="$1" host ip nameserver body=""
   [[ "$url" =~ ^https://[a-z0-9-]+\.midgard\.leostera\.dev/$ ]] || { echo "  FAIL not a Worker URL: $url" >&2; return 1; }
   host="$(echo "$url" | sed -E 's|https://([^/]+)/|\1|')"
+  nameserver="$(dig +short NS leostera.dev | head -1)"
   for _ in $(seq 1 20); do
-    ip="$(dig +short @1.1.1.1 "$host" | grep -E '^[0-9.]+$' | head -1 || true)"
+    # Ask the authoritative nameserver: public resolvers cache the NXDOMAIN
+    # from a poll made before the Worker's DNS record existed.
+    ip="$(dig +short @"$nameserver" "$host" | grep -E '^[0-9.]+$' | head -1 || true)"
     if [ -n "$ip" ]; then
       body="$(curl -fsS --resolve "$host:443:$ip" "$url" || true)"
       if [ "$body" = "Hello Joe!" ]; then echo "  OK  $url -> $body"; return 0; fi
@@ -68,7 +71,8 @@ smoke_elixir() {
     install_archives
     cd "$work" && mix midgard.new hello_worker >/dev/null
     cd hello_worker
-    grep -q '"~> 0.3"' mix.exs || { echo "  scaffold does not use Hex 0.3 packages"; exit 1; }
+    minor="$(echo "$version" | cut -d. -f1,2)"
+    grep -q "\"~> $minor\"" mix.exs || { echo "  scaffold does not use Hex $minor packages"; exit 1; }
     mix deps.get >/dev/null && mix test >/dev/null
     url="$(deploy "$work/elixir-deploy.log" mix midgard.deploy)" || exit 1
     check_hello "$url"
