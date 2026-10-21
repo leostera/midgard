@@ -64,8 +64,8 @@ defmodule Midgard.CLI.GeneratorTest do
                Midgard.CLI.Generator.generate_from_hex("hex_worker", destination)
 
       mix = File.read!(Path.join(destination, "mix.exs"))
-      assert mix =~ ~s({:midgard, "~> 0.3"})
-      assert mix =~ ~s(hex: "midgard_packer", version: "~> 0.3")
+      assert mix =~ ~s({:midgard, "~> 0.4"})
+      assert mix =~ ~s(hex: "midgard_packer", version: "~> 0.4")
       refute mix =~ ":midgard_cli"
     after
       File.rm_rf!(destination)

@@ -28,7 +28,7 @@ mix packer.pack --project path/to/worker --entry my_worker \
 
 For Gleam, first build the Erlang target, then use `mix packer.pack --project path/to/worker --gleam --entry my_worker --function handle --protocol midgard.bytes.v1`.
 
-Install the v0.3.0 archive from Hex:
+Install the v0.4.0 archive from Hex:
 
 ```sh
 mix archive.install hex midgard_packer --force

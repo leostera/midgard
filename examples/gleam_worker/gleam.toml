@@ -2,4 +2,4 @@ name = "gleam_worker"
 version = "0.1.0"
 
 [dependencies]
-midgard_gleam = "0.3.0"
+midgard_gleam = { path = "../../packages/gleam" }

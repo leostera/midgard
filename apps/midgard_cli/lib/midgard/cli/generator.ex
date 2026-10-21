@@ -111,8 +111,8 @@ defmodule Midgard.CLI.Generator do
 
   defp hex_dependencies do
     """
-    {:midgard, "~> 0.3"},
-    {:packer, hex: "midgard_packer", version: "~> 0.3", only: [:dev, :test], runtime: false}
+    {:midgard, "~> 0.4"},
+    {:packer, hex: "midgard_packer", version: "~> 0.4", only: [:dev, :test], runtime: false}
     """
   end
 

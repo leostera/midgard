@@ -35,7 +35,7 @@ defmodule Packer.GleamTest do
         assert Enum.map(manifest["modules"], & &1["name"]) == ["gleam_worker", "midgard"]
 
         assert manifest["dependencies"] == [
-                 %{"app" => "midgard_gleam", "version" => "0.3.0", "modules" => ["midgard"]}
+                 %{"app" => "midgard_gleam", "version" => "0.4.0", "modules" => ["midgard"]}
                ]
 
         assert {:ok, %{"execution" => "not_verified"}} = Packer.Profile.report(output)

@@ -9,7 +9,7 @@ Build Erlang workers for [Midgard](https://midgard.leostera.dev) with framework 
 Add the SDK to `rebar.config`:
 
 ```erlang
-{deps, [{midgard, "0.3.0", {pkg, midgard_erlang}}]}.
+{deps, [{midgard, "0.4.0", {pkg, midgard_erlang}}]}.
 ```
 
 The Hex package is named `midgard_erlang`; the Erlang application and module remain `midgard`.

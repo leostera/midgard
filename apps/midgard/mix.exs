@@ -4,7 +4,7 @@ defmodule Midgard.MixProject do
   def project do
     [
       app: :midgard,
-      version: "0.3.0",
+      version: "0.4.0",
       elixir: "~> 1.19",
       description: "Elixir worker API for Midgard",
       package: [

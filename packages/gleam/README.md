@@ -10,7 +10,7 @@ Add the package to `gleam.toml`:
 
 ```toml
 [dependencies]
-midgard_gleam = "0.3.0"
+midgard_gleam = "0.4.0"
 ```
 
 ## Handle a request

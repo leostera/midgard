@@ -9,13 +9,13 @@ Build Elixir workers with `Midgard.Worker`, typed request and response structs, 
 Add Midgard to your worker project's dependencies:
 
 ```elixir
-{:midgard, "~> 0.3"}
+{:midgard, "~> 0.4"}
 ```
 
 For local builds, tests, and artifact packaging, add Packer as a development dependency:
 
 ```elixir
-{:packer, "~> 0.3", hex: "midgard_packer", only: [:dev, :test], runtime: false}
+{:packer, "~> 0.4", hex: "midgard_packer", only: [:dev, :test], runtime: false}
 ```
 
 Install the Mix task archive separately with `mix archive.install hex midgard_cli`.

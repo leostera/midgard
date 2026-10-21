@@ -263,7 +263,7 @@ curl https://hello-worker-<id>.midgard.leostera.dev/`,
 
 gleam new hello_worker && cd hello_worker
 gleam remove gleam_stdlib
-gleam add midgard_gleam@0.3.0`,
+gleam add midgard_gleam@0.4.0`,
     setupNote: "Requires Gleam, Elixir, and OTP 29. Gleam can't run external build tools yet, so packaging and deploys use Midgard's Mix archives. Removing gleam_stdlib keeps the shipment to your code and the SDK.",
     sourceTitle: "Handle a request",
     source: `import midgard
@@ -295,8 +295,8 @@ mix midgard.deploy --artifact hello_worker.midgard`,
 rebar3 new lib hello_worker && cd hello_worker
 cat > rebar.config <<'EOF'
 {erl_opts, [debug_info]}.
-{deps, [{midgard, "0.3.0", {pkg, midgard_erlang}}]}.
-{project_plugins, [{rebar3_midgard, "0.3.0"}]}.
+{deps, [{midgard, "0.4.0", {pkg, midgard_erlang}}]}.
+{project_plugins, [{rebar3_midgard, "0.4.0"}]}.
 {midgard, [{entry, hello_worker}, {function, handle},
            {protocol, "midgard.bytes.v1"}]}.
 EOF`,

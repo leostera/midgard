@@ -4,7 +4,7 @@ defmodule Midgard.CLI.MixProject do
   def project do
     [
       app: :midgard_cli,
-      version: "0.3.0",
+      version: "0.4.0",
       elixir: "~> 1.19",
       description: "Mix tasks for creating, building, and deploying Midgard workers",
       package: [

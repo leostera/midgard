@@ -1,6 +1,6 @@
 {application, midgard,
  [{description, "Framework request and response types for Midgard Erlang workers"},
-  {vsn, "0.3.0"},
+  {vsn, "0.4.0"},
   {pkg_name, "midgard_erlang"},
   {licenses, ["MIT"]},
   {links, [{"GitHub", "https://github.com/leostera/midgard"}]},

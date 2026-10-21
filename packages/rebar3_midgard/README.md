@@ -9,8 +9,8 @@ Build and ship an Erlang worker from the Rebar3 workflow you already use. The pl
 Declare the Erlang SDK and project plugin in `rebar.config`:
 
 ```erlang
-{deps, [{midgard, "0.3.0", {pkg, midgard_erlang}}]}.
-{project_plugins, [{rebar3_midgard, "0.3.0"}]}.
+{deps, [{midgard, "0.4.0", {pkg, midgard_erlang}}]}.
+{project_plugins, [{rebar3_midgard, "0.4.0"}]}.
 {midgard, [
     {entry, my_worker},
     {function, handle},

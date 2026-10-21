@@ -63,7 +63,7 @@ mix archive.install hex midgard_cli --force
 
 gleam new hello_worker && cd hello_worker
 gleam remove gleam_stdlib
-gleam add midgard_gleam@0.3.0
+gleam add midgard_gleam@0.4.0
 ```
 
 Removing `gleam_stdlib` keeps the shipment to your code plus the SDK. Replace `src/hello_worker.gleam` with:
@@ -102,8 +102,8 @@ mix archive.install hex midgard_cli --force
 rebar3 new lib hello_worker && cd hello_worker
 cat > rebar.config <<'EOF'
 {erl_opts, [debug_info]}.
-{deps, [{midgard, "0.3.0", {pkg, midgard_erlang}}]}.
-{project_plugins, [{rebar3_midgard, "0.3.0"}]}.
+{deps, [{midgard, "0.4.0", {pkg, midgard_erlang}}]}.
+{project_plugins, [{rebar3_midgard, "0.4.0"}]}.
 {midgard, [{entry, hello_worker}, {function, handle},
            {protocol, "midgard.bytes.v1"}]}.
 EOF
