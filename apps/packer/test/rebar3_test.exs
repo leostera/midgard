@@ -21,6 +21,9 @@ defmodule Packer.Rebar3Test do
         )
 
       skip_output = output <> "-skip-compile"
+      # Compiling with the example's _checkouts makes rebar3 rewrite its lock.
+      lock = Path.join(@project, "rebar.lock")
+      original_lock = File.read!(lock)
 
       try do
         assert {:ok, ^output} = Packer.pack(options ++ [rebar3: rebar3, output: output])
@@ -48,6 +51,7 @@ defmodule Packer.Rebar3Test do
 
         assert {:ok, _manifest} = Packer.Verifier.verify(skip_output)
       after
+        File.write!(lock, original_lock)
         File.rm_rf!(output)
         File.rm_rf!(skip_output)
       end

@@ -197,6 +197,7 @@ cmd_finalize() {
 
   step "Re-running Packer tests against the published SDKs"
   (cd apps/packer && mix test)
+  grep -q "\"$version\"" examples/erlang_worker/rebar.lock || die "a test rewrote examples/erlang_worker/rebar.lock"
 
   step "Committing"
   git add examples/gleam_worker/gleam.toml examples/gleam_worker/manifest.toml examples/erlang_worker/rebar.lock
