@@ -1,237 +1,246 @@
 # RFD0003 - Tree-shaken worker shipments
 
 - Feature Name: `midgard-tree-shaking`
-- Status: Draft
+- Status: Draft (prototype validated)
 - Author: Leandro Ostera
 - Start Date: 2026-10-21
+- Updated: 2026-10-21
 
 ## Summary
 
-Packer should ship only the code a worker can actually run. Starting from the manifest's entrypoint, it walks the **function-level** call graph of the worker and every module in its closure, including OTP and the Elixir standard library. It then rewrites each surviving module from its abstract code with every unreachable function removed, and drops modules with nothing reachable. Because unreachable functions take their imports with them, the result is a smaller closure that still satisfies libbeam's whole-group rule that every import resolves. A hello-world Elixir worker should go from 339 modules and 18 MB to roughly 77–228 modules and under 2–5 MB, and its deploy from ~86 seconds to a few seconds. Packer also stops shipping debug info, docs, and Elixir type-check chunks. This amends RFD0002's invariant that the complete declared dependency group ships unchanged: modules keep their exact names, but their bytes may differ from the compiler's output, and the manifest records that.
+Packer should ship only the functions a worker can reach. It walks the function-level call graph from the manifest entrypoint through the whole closure, including Elixir and OTP, rebuilds every module with unreachable functions removed, and drops modules with nothing reachable. A prototype (`bench/shake/`) did this for the generated Elixir worker: **339 modules and 17.9 MB became 103 modules and 1.1 MB, libbeam admitted it, and the deploy went from 85.7 s to 6.1 s** with identical responses. On ordinary OTP, a worker exercising `inspect`, `Enum` over maps and sets, interpolation, `URI` and exception messages answered all nine test routes identically to the unshaken worker.
+
+The exploration also found a bug in today's Packer, independent of shaking: it does not ship Elixir protocol implementations, so `Enum` over a map, `"#{123}"` and `inspect/1` of most terms cannot work on Midgard. Fixing it is the first step of this RFD.
+
+Shaking changes RFD0002's rule that the complete dependency group ships unchanged: modules keep their exact names, but their bytes change, and the manifest records that.
 
 ## Motivation
 
-Gleam and Erlang workers deploy in about 4 seconds. A freshly scaffolded Elixir worker takes 75–90 seconds, which is the first thing someone trying Midgard experiences.
+Erlang and Gleam workers deploy in about 10 s, end to end. A freshly generated Elixir worker takes about 85 s (`scripts/measure-deploy.sh`, three runs, October 2026). That is the first thing an Elixir developer sees, and the landing page leads with "Serverless Elixir".
 
-Measured with `scripts/measure-deploy.sh` and a replayed upload against the public demo on 2026-10-21:
+The cost is the shipment. Packer ships the worker's whole runtime closure (RFD0002): for a hello world, all of Elixir, `stdlib`, `kernel`, `compiler`, `erts`, `iex` and `logger`, 339 modules and 17.9 MB, of which the worker's own code is 7 modules. Uploading takes about 19 s; libbeam admitting 339 modules takes about 67 s. Every stored Elixir worker is also re-admitted whenever the platform container restarts, so the cost recurs.
 
-| Shipment of the generated `elixir_worker` | Modules | Upload | Upload time | Server time after upload | Result |
-| --- | --- | --- | --- | --- | --- |
-| As built today | 339 | 18.0 MB | 19.0 s | 66.6 s | admitted |
-| Without `Dbgi`, `Docs`, `ExCk` chunks | 339 | 7.0 MB | 6.1 s | 36.9 s | admitted, serves correctly |
-| Plus static function-level reachability (modules only) | 77 | 1.8 MB | 1.9 s | 4.9 s | **rejected**: unresolved import |
-| Gleam `gleam_worker`, for comparison | 2 | 12 KB | – | – | ~1.9 s total |
+Most of it is never executed:
 
-The worker's own code is 7 modules. The other 332 are Elixir, `stdlib`, `kernel`, `compiler`, `erts`, `iex`, and `logger`, shipped because Packer includes the whole declared runtime closure (RFD0002). Most of those bytes are never executed:
+- 8.9 MB is debug info, 1.1 MB docs and 1.0 MB Elixir type-check data. Executable code is 4.1 MB.
+- From `Elixir.ElixirWorker.__midgard_call__/1`, about 1,460 of 22,366 functions are reachable under the rules below.
 
-- Of 17.9 MB, 8.9 MB is debug info, 1.1 MB docs, and 1.0 MB Elixir type-check data. Executable code is 4.1 MB.
-- From `Elixir.ElixirWorker.__midgard_call__/1`, only **907 of 26,251 functions** are statically reachable, spread over 77 modules. Conservatively allowing for dynamic dispatch still leaves only about 14,000 functions in 228 modules.
+Two constraints rule out simpler fixes:
 
-Two facts block a simple fix:
+1. **Dropping whole modules does not work.** The module graph is densely connected through rarely taken paths, and following real imports keeps 336 of 339 modules.
+2. **libbeam admits a shipment as a whole and requires every import to resolve.** A 77-module experiment that dropped modules but kept their contents was rejected: `Enum` imports `Enum.OutOfBoundsError.exception/1` for an error path the worker never takes.
 
-1. **Module-level shaking does not work.** The BEAM module graph is densely connected through rarely taken paths. `Enum` reaches `ArgumentError`, then `elixir_erl_pass`, then `compile`. `Kernel` reaches `Module`, `elixir`, then `iex`. `IO` reaches `io`, `net_kernel`, `inet_config`, then `win32reg`. Following only real imports keeps 336 of 339 modules.
-2. **libbeam admits a shipment as a whole and requires every import to resolve.** Dropping modules that no reachable function calls still fails, because unreachable functions in kept modules import them. The 77-module experiment was rejected for `Elixir.Enum.OutOfBoundsError:exception/1`, which `Enum` imports for an error path the worker never takes.
-
-So the only way to drop what a worker doesn't use, without changing the runtime's admission rule, is to remove unreachable **functions** from modules, and therefore their imports.
+Only removing unreachable **functions**, and with them their imports, shrinks the closure while still satisfying libbeam.
 
 ## Goals
 
-- Ship only reachable code for Mix, Rebar3, and Gleam workers, through the whole closure including OTP and Elixir.
-- Produce shipments libbeam admits under its current whole-group import rule.
-- Never remove code a worker can execute. When reachability cannot be decided, keep the code and say why.
-- Make the result explainable: why a function was kept, and what was dropped.
-- Keep builds reproducible: the same inputs produce the same bytes.
+- Ship only reachable code for Elixir workers, through the whole closure, admitted by libbeam's current whole-group import rule.
+- Make Elixir deploys comparable to Erlang and Gleam: a few seconds and a few MB.
+- Keep packing fast: shaking must not add more time than it saves.
+- Make the result explainable (why a function was kept) and verifiable before deploying.
+- Keep builds reproducible.
 
 ## Non-goals
 
-- Changing libbeam's admission rules. Lazy, unresolved imports are a separate, complementary proposal (see Alternatives).
-- Optimizing kept code (inlining, constant folding). Kept functions are recompiled, not optimized beyond what the compiler already does.
-- Making untrusted code safe. Shaking is a size optimization on trusted local builds, not a security boundary.
-- Shaking NIF-backed or `on_load` modules. Packer already rejects them.
+- Changing libbeam's admission rules (lazy imports are an alternative, below).
+- Optimizing kept code, or shrinking within functions.
+- Making untrusted code safe. Shaking is a size optimization on trusted local builds.
+- Shaking workers that start OTP applications or processes. That needs more roots than the entrypoint; see [Runtime roots](#runtime-roots).
+
+## What the prototype established
+
+All numbers are from `bench/shake/shake.exs` on the generated `elixir_worker` (hello world) and a `stress_worker` that exercises `inspect` of maps, ranges, structs and MapSets, `Enum` over maps, ranges and MapSets, string interpolation, `String`, `URI`, rescued exceptions and an uncaught raise.
+
+### 1. Rebuilding modules works, but Elixir must be rebuilt from Core Erlang
+
+All 339 modules in the closure have recoverable abstract code. Erlang modules recompile from their Erlang abstract code with their recorded options, minus include paths and `debug_info`. Elixir modules do not: Elixir now compiles from Core Erlang (`from_core`, `no_core_prepare`), so recompiling its Erlang abstract code with its own options crashes `core_lint`, and recompiling it without them takes a different compiler path than Elixir does. Elixir's debug-info backend can produce Core Erlang (`elixir_erl:debug_info(core_v1, ...)`), and rebuilding from that with the module's own options works for every Elixir module in the closure.
+
+Attributes that name functions must be filtered with the functions: `export`, `spec`, `inline`, `deprecated`, `unsafe`, `dialyzer`, `nifs`. A few modules still fail to recompile (`erl_lint` and `crypto` when reached with extra roots); a failed module must be kept whole, not dropped.
+
+### 2. A fully safe analysis keeps almost everything
+
+Treating every call whose function name or arity is unknown as able to reach any export of any candidate module keeps 20,693 functions in 330 modules. The hello world reaches the Elixir compiler through an error path:
+
+```text
+ElixirWorker.__midgard_call__/1 → Enum.reverse/1 → Enumerable.impl_for!/1
+  → Protocol.UndefinedError.exception/1 → Kernel.struct!/2
+  → elixir_erl_pass:parens_map_field/2 → IO.warn_once/3 → ... → Kernel.inspect/1
+  → Inspect.Map.inspect_as_map/2 → elixir_erl_pass:no_parens_remote/2
+  → (Map:Key() with a computed function) → every export, incl. elixir_compiler:bootstrap/0
+```
+
+A handful of such calls on error and formatting paths decide the whole result. Safety at those sites has to come from verification, not from the walk.
+
+### 3. "Known target" rules are enough in practice
+
+The prototype resolves dynamic calls only when their target is narrowed by a literal:
+
+| Pattern | Rule |
+| --- | --- |
+| `m:f(...)`, `f(...)`, `fun m:f/a` | static edge (an unknown local `f` is the auto-imported BIF `erlang:f`) |
+| `apply(m, f, [a1, ..., an])`, `spawn*` with literals | static edge to `m:f/n` |
+| `Mod:f(...)` with computed `Mod`, known `f/a` | `f/a` in every module named by a **reachable atom** |
+| `m:Fun(...)` with literal `m`, computed `Fun` | all exports of `m` with that arity |
+| `binary_to_atom(<<"Elixir.Dict">>)` and friends with a literal | that atom (Elixir uses this to avoid compile-time dependencies) |
+| neither module nor function known | reported, not followed |
+
+A module value can only come from an atom in reachable code, so the reachable-atom rule covers protocol dispatch (`impl_for/1` names its implementations), `exception.__struct__.message/1`, and struct callbacks, without special cases. Results:
+
+| Worker | Modules | Functions | Bytes | Unknown-target sites | Runtime atom creation sites |
+| --- | --- | --- | --- | --- | --- |
+| `elixir_worker` | 339 → 103 | 22,366 → 1,463 | 17.9 MB → 1.09 MB | 2 | 6 |
+| `stress_worker` | 344 → 111 | 22,585 → 1,586 | 18.1 MB → 1.14 MB | 2 | 6 |
+| `stress_worker` + protocol impls | 406 → 181 | 22,848 → 3,533 | 18.4 MB → 1.51 MB | 2 | 13 |
+
+The two unknown-target sites in every case are `ErlangError.error_info/3` and `elixir_erl_pass:no_parens_remote/2`, both in error formatting. Every shaken shipment had zero unresolved imports.
+
+### 4. Packer does not ship protocol implementations today
+
+`Packer.RuntimeClosure` follows imports and external fun references. A consolidated protocol names its implementations only as atoms in `impl_for/1`, so they are never shipped. The stress worker's closure contains 1 of 12 `Enumerable` implementations (`List`), 5 of 32 `Inspect`, 1 of 12 `String.Chars`, and no `Collectable` or `List.Chars`. On the live platform, the unshaken stress worker returns 500/502 for `inspect`, `Enum` over a map, interpolation, `URI` and exception messages. Those failures had been attributed to libbeam; at least part of them is this bug. Erlang and Gleam workers are unaffected because they do not use protocols.
+
+Adding every implementation from Elixir's `ebin` to the unshaken shipment makes libbeam reject it (`Collectable.HashDict` imports `HashDict`, which is not shipped). Shaking resolves this: only implementations reachable through dispatched functions are kept, and their imports come with them.
+
+### 5. Verified behaviour
+
+- **libbeam:** the shaken hello world was admitted in 6.1 s (upload and admission; 85.7 s unshaken) and answered `/`, `/hello/joe`, a Unicode name, `/hello/`, a query string, `/nope` and a `POST` byte-for-byte like the unshaken worker.
+- **OTP 29:** `bench/shake/swap.erl` boots `:elixir` from its real modules, then hot-loads the shaken Elixir, SDK and worker modules over them, so all later calls run shaken code. With protocol implementations in the closure, all nine stress routes matched the unshaken worker exactly. With Packer's current closure, `/inspect`, `/enum` and `/uri` failed, which is how finding 4 surfaced.
+- **Not yet verified:** the shaken stress worker with protocol implementations on libbeam. Its upload coincided with the platform container restarting, and the upload was not retried. See [Unresolved questions](#unresolved-questions).
+
+### 6. Runtime roots change everything
+
+The entrypoint is the only root libbeam needs: it calls the entrypoint and nothing else. Adding `elixir:start/2`, which an OTP node calls when it starts `:elixir`, grows the stress worker from 111 to 228 modules and still does not boot. Supervisors start children from data such as `{elixir_config, start_link, []}`, and behaviours call callbacks through `proc_lib` with computed names. Workers that start applications or processes need two more rules, behaviour callbacks and MFA tuples in literals, and get much smaller wins.
+
+### 7. Packing time
+
+| Phase | Prototype, uncached |
+| --- | --- |
+| Read debug info and index 339 modules | 2–10 s |
+| Walk | 0.5–1.5 s |
+| Rebuild ~100 modules in parallel | 2–12 s |
+| Total | 4.5–25 s, typically ~9 s (12-core laptop, noisy) |
+
+A first implementation passed the whole index into every compile task and took 75–128 s; giving each task only its own module brought the rebuild phase down to 2 s. Indexing and rebuilding the standard library depend only on the toolchain and the kept function set, so they cache well across workers and builds.
 
 ## Guide-level explanation
 
-Shaking is on by default once stable; a flag turns it off:
+Shaking is on by default for Elixir once stable:
 
 ```sh
-mix midgard.deploy               # shaken
-mix packer.pack --no-shake       # the full closure, as before
-rebar3 midgard pack              # shaken
-mix packer.pack --project . --gleam ...   # shaken
+mix midgard.deploy            # shaken
+mix packer.pack --no-shake    # the full closure, as before
 ```
-
-Packer reports what it did (numbers illustrative):
 
 ```text
 Packed elixir_worker.midgard
-  shaken: 339 → 81 modules, 26,251 → 1,094 functions, 17.9 MB → 1.4 MB
-Static current-core profile: 0 known unsupported, 0 unresolved imports; execution NOT VERIFIED
+  shaken: 339 → 103 modules, 22,366 → 1,463 functions, 17.9 MB → 1.1 MB (1.8 s, cached)
+  2 calls with unknown targets kept as-is (error formatting); see --why
 ```
 
-Code reached only dynamically, for example through `apply/3` with a computed module, is kept when Packer can see the candidates, such as atoms that name modules in the same function. When it can't, the build fails rather than guessing:
+A worker that dispatches dynamically to its own modules lists them:
 
-```text
-** (Mix) Packer cannot decide what MyWorker.dispatch/2 calls:
-   apply(mod, :run, [request]) with a module computed at runtime.
-   Keep the possible targets explicitly:
-     packer: [keep: [MyWorker.Jobs.Email, {MyWorker.Jobs.Sms, :run, 1}]]
+```elixir
+# mix.exs
+packer: [keep: [MyWorker.Jobs.Email, {MyWorker.Jobs.Sms, :run, 1}]]
 ```
 
-A worker can ask why something is in its shipment:
+Packer explains its choices and checks them before deploying:
 
 ```sh
-$ mix packer.inspect elixir_worker.midgard --why Elixir.Inspect.Algebra
-Elixir.ElixirWorker.__midgard_call__/1
-  → Elixir.Midgard.Worker.call/2
-  → Elixir.Kernel.inspect/2
-  → Elixir.Inspect.Algebra.format/2
+mix packer.inspect elixir_worker.midgard --why Elixir.Inspect.Map
+mix packer.verify                # run the worker's tests against the shaken modules on OTP
 ```
-
-Tests run against the shaken shipment too. `mix packer.verify` loads the shaken modules into a separate, ordinary OTP node and runs the worker's tests there, so a function that was dropped but is actually needed fails locally with `undef`, not in production.
 
 ## Reference-level explanation
 
 ### Pipeline
 
-Shaking runs inside Packer after collecting the closure and before writing the artifact:
+1. **Collect** the closure as today, **including the implementations of every consolidated protocol in it** (from `__protocol__(:impls)`), so that dispatch targets are available to the walk.
+2. **Index** every module: recover Erlang abstract code from `Dbgi`; for each function, record static edges, dynamic sites, and atom literals that name shipped modules.
+3. **Walk** from the roots with the rules in finding 3, to a fixpoint. Roots: the manifest entrypoint, `module_info/0,1` of every kept module, and `keep` entries.
+4. **Rewrite** each module with reachable functions: Elixir modules from `core_v1` with their recorded options, Erlang modules from abstract code with their recorded options; filter function-naming attributes; compile with `deterministic` and without `debug_info`. If a module fails to rebuild, keep it whole and walk all of its functions.
+5. **Strip** non-executable chunks; write BEAMs uncompressed (libbeam rejects `beam_lib:strip/1`'s gzip output).
+6. **Check closure:** every import of a kept module resolves to a kept export or to a module outside the shipment (runtime BIFs). Fail the build otherwise.
+7. **Report:** unknown-target sites and runtime atom creation sites, with the path that reached them.
 
-1. **Collect.** Same as today: the project's and every runtime dependency's compiled BEAMs and owners (RFD0002).
-2. **Index.** For each module, recover its Erlang abstract code from its `Dbgi` chunk through the module's debug-info backend (`erl_abstract_code` for Erlang, `elixir_erl` for Elixir). Build a function table: for each `{M, F, A}`, its outgoing edges.
-3. **Seed roots.** See [Roots](#roots).
-4. **Walk.** Mark every function reachable from the roots, following the [edge rules](#edges). Unknown dynamic calls are a build error unless covered by `keep`.
-5. **Rewrite.** For each module with at least one reachable function, drop unreachable function definitions and their `export` entries, then recompile the forms with the compiler options recorded in the module's `CInf`, plus `deterministic` and without `debug_info`. Drop modules with no reachable function.
-6. **Strip.** Keep only the chunks libbeam and the verifier need: `AtU8`, `Code`, `StrT`, `ImpT`, `ExpT`, `FunT`, `LitT`, `LocT`, `Attr`, `CInf`, `Line`, `Type`. Write the BEAM **uncompressed** with `beam_lib:build_module/1`; libbeam rejects the gzip output of `beam_lib:strip/1`.
-7. **Verify.** Run the existing verifier and static profile, plus a closure check: every import of every kept module resolves to a kept export. This catches walker bugs before upload.
+Steps 2 and 4 are cached by `{toolchain, module sha256}` and `{module sha256, kept function set}`.
 
-Steps 2 and 5 dominate build time. Rewritten modules are cached by `{original sha256, kept function set, compiler version}`, so `stdlib` and Elixir are shaken once per toolchain and worker shape, not on every build.
+### Unknown-target sites
 
-### Roots
+Failing the build on every unknown-target site would fail every Elixir build: the two error-formatting sites above are always present. The proposal: report them, fail only for sites in the project's own modules unless covered by `keep`, and rely on `mix packer.verify` for the standard library.
 
-- The manifest entrypoint, for example `Elixir.ElixirWorker.__midgard_call__/1` or `gleam_worker:handle/1`.
-- `module_info/0` and `module_info/1` of every kept module, which the runtime requires.
-- Functions the runtime itself may call: `error_handler:undefined_function/3` and similar. The precise list is set by what libbeam calls, see [Unresolved questions](#unresolved-questions).
-- Everything named in `keep`.
+### Runtime roots
 
-### Edges
-
-A function's edges are found from its abstract code:
-
-- **Local and remote calls** with literal targets: `f(...)`, `m:f(...)`.
-- **Function references**: `fun f/1`, `fun m:f/1`, and fun literals in constants.
-- **Behaviour callbacks.** If a kept module declares `-behaviour(B)` and code calls into `B` (for example `gen_server`), its callbacks for `B` are reachable.
-- **Elixir protocols.** A call to a consolidated protocol function reaches `impl_for/1`, whose literal module atoms name the implementations. Each implementation's function of the same name and arity is reachable. Unconsolidated protocols are an error. Mix consolidates protocols at compile time by default outside the test environment.
-- **Elixir exceptions.** `raise SomeError, ...` reaches `SomeError.exception/1` and `message/1`, which `Kernel` and `Exception` call dynamically.
-- **Structs.** `%S{}` reaches `S.__struct__/0,1`.
-- **`apply/2,3`, `erlang:apply`, and `Mod:fun(...)` with a computed module.** If every candidate is visible, the edges go to each candidate's function with that name and arity. Candidates are atoms that name modules in the same function, or values flowing from a local function that returns only literals, as `impl_for/1` does. Otherwise this is an **undecidable dynamic call**: the build fails and names the call site, unless `keep` covers it.
-- **Calls with a computed function name** (`apply(M, fun_name, args)`) keep all exports of `M` of that arity.
-
-These rules are deliberately conservative: they may keep code that never runs, but never drop code that can. Measured on the hello world, static calls alone reach 907 functions, and treating every module-naming atom in dynamically dispatching functions as a candidate reaches about 14,000. The rules above should land much closer to the first number. Validating that is the first implementation milestone.
-
-### Configuration
-
-| Tool | Setting |
-| --- | --- |
-| Mix | `packer: [shake: true, keep: [Mod, {Mod, :fun, arity}]]` in `mix.exs`, or `midgard.config.exs` |
-| Rebar3 | `{midgard, [{shake, true}, {keep, [mod, {mod, fun, Arity}]}]}` |
-| Gleam | `--shake` / `--no-shake` and repeated `--keep module.fun/arity` flags |
-
-`keep: [Mod]` keeps every export of `Mod`.
+Roots are a property of the host. libbeam calls only the entrypoint, which is what makes the results above possible. If a future host starts OTP applications, it must declare its extra roots (for example `elixir:start/2`), and the walk must add behaviour callbacks for referenced modules and treat literal `{M, F, Args}` tuples as edges.
 
 ### Artifact format
 
-Shaken artifacts use `format_version` 3. It is v1 (Mix, Rebar3) or v2 (Gleam) plus:
-
-- each module record gains `original_sha256`, the hash of the compiler's BEAM before shaking. `sha256` and `size` describe the shipped bytes;
-- a top-level `shaking` object: `{"mode": "function", "roots": [...], "kept": ["Mod.fun/1", ...], "functions": {"before": 26251, "after": 1094}, "dropped_modules": [...]}`.
-
-`dependencies[].modules` lists only kept modules. A dependency with no kept modules is listed with `modules: []` so its version is still recorded.
-
-The platform's shipment verifier (`apps/midgard_platform/lib/midgard/platform/shipment.ex`) must accept v3 before Packer emits it by default; until then shaking is opt-in. Unshaken artifacts remain v1/v2 and are unaffected.
+Shaken artifacts use `format_version` 3: v1 plus, per module, `original_sha256` (the compiler's bytes) and a top-level `shaking` object (`roots`, function counts, dropped modules, unknown-target sites). The platform's shipment verifier (`apps/midgard_platform/lib/midgard/platform/shipment.ex`) must accept v3 before shaking becomes the default. Unshaken artifacts are unchanged.
 
 ### Invariants
 
-This amends RFD0002's "preserve … the complete declared runtime dependency group" as follows:
+- Kept modules keep their exact names; nothing is renamed or aliased.
+- Every kept function has the same behaviour as the compiler's output; shaking only removes functions.
+- Every import of every kept module resolves within the shipment or to the runtime.
+- A module that fails to rebuild is kept whole, never dropped.
+- `--no-shake` produces today's artifact.
 
-- A kept module keeps its exact name and internal module name. Packer never renames or aliases.
-- Every function reachable from the roots is present with the same behaviour as the compiler's original output. Shaking removes functions; it never changes a kept function's code.
-- Every import of every kept module resolves within the shipment.
-- When reachability cannot be decided, the build fails or the code is kept. It never silently drops.
-- The manifest records the original hash of every rewritten module, so a shipment is traceable to the compiler's output.
-- `--no-shake` produces exactly today's artifact.
+### Observable differences
 
-### Failure semantics
+Removing functions removes exports. `function_exported?/3`, `module_info(:exports)` and `__info__(:functions)` see the shaken module. Literal `function_exported?(M, F, A)` calls are edges, so their answer does not change; computed ones are unknown-target sites.
 
-- **Missing abstract code:** a module without recoverable abstract code is kept whole. Its imports still have to resolve, so its callees are kept whole too. Packer reports which module caused it.
-- **Undecidable dynamic call:** the build fails with the call site and a suggested `keep` entry.
-- **Recompile failure:** the build fails naming the module. This indicates a Packer bug; `--no-shake` is the workaround.
-- **Closure check failure:** the build fails before writing the artifact.
-- **Behaviour drift:** if a dropped function turns out to be needed at runtime, the worker raises `undef` in libbeam. `mix packer.verify` exists to catch this locally, and the `--why` and manifest data make it diagnosable.
+## Implementation plan
 
-### Observable differences for worker code
-
-Removing functions also removes exports. Code that introspects exports sees the shaken module: `function_exported?/3`, `Module.__info__(:functions)`, `module_info(exports)`, and `Code.ensure_loaded?` followed by an optional call. Elixir and OTP use this pattern for optional callbacks, for example `GenServer` checking whether `format_status/1` is defined. The walker treats each `function_exported?(M, F, A)` call with literal arguments as an edge to `M:F/A`, so the answer doesn't change. A computed `function_exported?` is an undecidable dynamic call.
+1. **Ship protocol implementations** in `Packer.RuntimeClosure` (finding 4). This fixes today's Elixir workers regardless of shaking, but grows unshaken shipments and needs libbeam to accept their imports, so it may need to land together with step 3.
+2. **Strip non-executable chunks** (no rewriting): measured 85.7 s → 43 s for the hello world.
+3. **Shake behind `--shake`**, artifact v3, platform support, report and `--why`.
+4. **`mix packer.verify`**, built on the hot-swap harness.
+5. **Cache** the index and rebuilt modules; target a warm pack under 5 s.
+6. **Default on** for Elixir once verify passes on the examples.
 
 ## Drawbacks
 
-- **Large and subtle.** The walker must model Erlang and Elixir dynamic dispatch correctly, and mistakes surface as runtime `undef` in production. This is the main risk, mitigated by failing builds on undecidable calls, the closure check, and running the tests against the shaken modules.
-- **Shipped bytes no longer match the compiler's.** Debugging a shipped module means comparing against `original_sha256`. Stack traces still work because `Line` is kept.
-- **Slower cold builds.** Recovering abstract code and recompiling dozens of stdlib modules costs seconds on the first build per toolchain, mitigated by the cache.
-- **More configuration.** Projects that dispatch dynamically must maintain `keep` lists.
-- **A new artifact version** that the platform must learn before shaking becomes the default.
+- The walk must model dynamic dispatch correctly. Misses surface as `undef` at runtime; the closure check, the report and `packer.verify` are the mitigations. The prototype missed one pattern (`binary_to_atom` of a literal) before verification caught it.
+- Shipped bytes no longer match the compiler's; `original_sha256` keeps them traceable.
+- Rebuilding from Core Erlang depends on Elixir's `core_v1` debug-info backend and its compile options, which may change between Elixir versions.
+- A new artifact version.
 
 ## Rationale and alternatives
 
-### Proposed design
-
-Function-level shaking with module rewriting is the only option that removes unused code without changing libbeam's admission rule. It works for all three languages because they all compile to BEAM with abstract code available at build time (all 339 modules of the measured closure have it). It also makes each shipment's contents explainable, which matters as much as size for a platform that admits whole groups.
-
-### Simpler or narrower approach
-
-**Only strip non-executable chunks.** This alone halves the Elixir deploy (85.7 s → 43.0 s) with no semantic risk, so it ships first, independently of this RFD's acceptance. It does not address the 339-module closure or the per-module admission cost, which is still about 37 s.
-
-### Other alternatives considered
-
-- **Module-level shaking.** Simple and semantically safe, but measured useless: real imports alone reach 336 of 339 modules.
-- **Lazy unresolved imports in libbeam.** Let libbeam admit modules whose imports don't resolve, raising `undef` if called, as the regular BEAM does with lazy loading. Packer could then drop whole modules after a function-level walk, without rewriting anything: about 77–228 modules for the hello world. It is simpler on the Packer side, but changes a runtime admission guarantee and still ships every unreachable function inside kept modules. It is complementary rather than competing: if libbeam gains it, Packer can skip rewriting modules that contain no unreachable imports.
-- **Rewriting at the BEAM assembly level** (`beam_disasm` to `beam_asm`) instead of abstract code. It works without debug info, but is fragile across OTP releases and not a supported compiler interface. Abstract code is.
-- **Trimming known-unneeded OTP applications** (`compiler`, `iex`, `logger`) by hand. Fast, but brittle, incomplete, and still blocked by imports from kept modules.
-- **A precompiled, shared runtime in the platform.** The host could preload one copy of Elixir and OTP for all workers, so shipments contain only application code. This removes the problem for the standard library but ties worker builds to the host's exact toolchain, which RFD0002 deliberately avoids, and it does nothing for large third-party dependencies.
-
-### Do nothing
-
-Elixir workers stay roughly 20 times slower to deploy than Erlang and Gleam workers. The cost grows with every dependency, because every module in a dependency ships and is admitted whether or not it's used.
+- **Strip chunks only.** Halves the deploy with no semantic risk and ships first, but leaves 339 modules to upload and admit.
+- **Drop whole modules.** Measured useless: 336 of 339 modules remain.
+- **Lazy unresolved imports in libbeam.** Admit modules whose imports do not resolve and raise `undef` if called. Packer could then drop modules without rewriting them, but kept modules would still carry all their unreachable functions, and a runtime guarantee would weaken. Complementary, not a replacement.
+- **Rewrite at the BEAM assembly level.** Works without debug info, but is not a supported compiler interface.
+- **A shared, preloaded standard library on the host.** Shipments would contain only application code, but worker builds would be tied to the host's exact toolchain, and third-party dependencies would still ship whole.
+- **Do nothing.** Elixir deploys stay around 85 s, grow with every dependency, and keep failing on protocol dispatch.
 
 ## Prior art
 
-- **JavaScript bundlers** (Rollup, esbuild, webpack): tree shaking over static ES module imports, falling back to keeping everything for dynamic `import()`. The lesson: be conservative around dynamic access, and expose why code was included.
-- **ProGuard and R8** for the JVM: whole-program shrinking with explicit `-keep` rules for reflection, which is the model for `keep` here. Their main failure mode, missing keep rules for reflection, motivates failing the build on undecidable calls instead of guessing.
-- **GraalVM native-image**: closed-world reachability analysis with reflection configuration, and an agent that records dynamic accesses at runtime. A future Midgard equivalent could record `apply` targets during tests.
-- **Elixir protocol consolidation and `mix release`** already rely on a closed world at build time. Consolidated protocols are what make protocol dispatch decidable here.
-- **Erlang `reltool`** strips debug info and selects applications for releases, but at application and module granularity only.
+- **JavaScript bundlers** (Rollup, esbuild): tree shaking over static imports, conservative around dynamic access, and the ability to explain inclusions.
+- **ProGuard and R8:** whole-program shrinking with `-keep` rules for reflection; the model for `keep`.
+- **GraalVM native-image:** closed-world analysis plus recorded reflection configuration; a future `packer.verify` could record dynamic targets the same way.
+- **Elixir protocol consolidation and `mix release`:** consolidation is what makes protocol dispatch decidable here.
+- **`reltool`:** strips debug info and selects applications, at application and module granularity only.
 
 ## Unresolved questions
 
 ### Before acceptance
 
-- Should an undecidable dynamic call fail the build (proposed) or keep all candidates with a warning?
-- Which functions does libbeam itself call, and therefore must always be roots (error handler, exit and exception paths)?
-- Should shaking become the default for all languages at once, or Elixir first, where the gain is largest?
+- Why did the platform container restart during the shaken stress upload? A single upload taking down every worker is a platform bug, whatever the cause.
+- Does libbeam run the shaken stress worker's `inspect`, `Enum` and `URI` paths once protocol implementations are shipped? This separates the Packer bug from real libbeam gaps.
+- Should shipping protocol implementations (step 1) land before shaking or together with it?
 
 ### During implementation
 
-- The exact recompile options per backend, and whether recompiling Elixir modules from `elixir_erl` abstract code yields byte-identical functions for kept code.
-- Cache location and invalidation across OTP and Elixir upgrades.
-- How `mix packer.verify` runs worker tests against shaken modules for Rebar3 and Gleam projects.
-- Whether to keep the `Type` chunk.
+- The policy for unknown-target sites in project code.
+- Cache location and invalidation.
+- How `packer.verify` drives a worker's tests, and how it applies to Rebar3 and Gleam.
 
 ### Out of scope
 
-- Lazy unresolved imports in libbeam.
-- Shrinking within functions (dead branches, unused clauses).
-- Recording dynamic-call targets at runtime to suggest `keep` entries.
+- Lazy imports in libbeam; hosts that start OTP applications; shrinking within functions.
 
 ## Future possibilities
 
-- Share shaken standard-library modules across workers on the host by `sha256`, so common code is uploaded and admitted once.
-- Show a shipment's composition (what's kept and why) on the worker's detail page.
+- Share shaken standard-library modules across workers by `sha256`, so common code is uploaded and admitted once.
+- Show a shipment's composition on the worker's detail page.
 - Use the reachability index to warn about calls into code libbeam doesn't support before deploying.
