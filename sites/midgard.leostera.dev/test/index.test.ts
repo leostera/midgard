@@ -4,13 +4,24 @@ import { Database } from "bun:sqlite";
 const state = { calls: 0, assets: [] as string[], upstream: [] as string[], limited: false, buildsLimited: false };
 const domainRequests: Array<{ url: string; body: Record<string, unknown> }> = [];
 const attachedDomains = new Set<string>();
+const detachedDomains: string[] = [];
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 	const url = input instanceof Request ? input.url : input instanceof URL ? input.href : input;
-	if ((init?.method ?? "GET") === "GET") {
+	const method = init?.method ?? "GET";
+	if (method === "GET") {
+		const hostname = new URL(url).searchParams.get("hostname");
 		return Response.json({
 			success: true,
-			result: [...attachedDomains].map((hostname) => ({ hostname, service: "midgard-leostera-dev", enabled: true })),
+			result: [...attachedDomains]
+				.filter((domain) => hostname === null || domain === hostname)
+				.map((domain) => ({ id: `id-${domain}`, hostname: domain, service: "midgard-leostera-dev", enabled: true })),
 		});
+	}
+	if (method === "DELETE") {
+		const hostname = decodeURIComponent(new URL(url).pathname.split("/").at(-1)!).replace(/^id-/, "");
+		detachedDomains.push(hostname);
+		attachedDomains.delete(hostname);
+		return Response.json({ success: true, result: null });
 	}
 	const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
 	domainRequests.push({ url, body });
@@ -282,4 +293,67 @@ test("anonymous uploads receive immutable routes and recover exact stored bytes"
 	expect(requests[6]?.headers.get("authorization")).toBeNull();
 	expect(requests[6]?.headers.get("cookie")).toBeNull();
 	expect(requests[6]?.headers.get("x-midgard-internal-upload")).toBeNull();
+});
+
+test("a full demo admits the new worker, then removes the oldest one", async () => {
+	attachedDomains.clear();
+	detachedDomains.length = 0;
+	const { ctx, container, requests } = runtimeHarness();
+	const runtime = new NativeRuntime(ctx, env);
+	const deploy = async (app: string) => {
+		const response = await runtime.fetch(new Request(`https://midgard.leostera.dev/api/deployments/${app}`, {
+			method: "POST", headers: { "content-type": "application/vnd.midgard.shipment.v1" }, body: new Uint8Array([1]),
+		}));
+		expect(response.status).toBe(201);
+		return (await response.json() as { slug: string }).slug;
+	};
+	const slugs: string[] = [];
+	for (let index = 0; index < 32; index++) slugs.push(await deploy(`app${index}`));
+	expect(detachedDomains).toEqual([]);
+
+	const newest = await deploy("newest");
+	const listed = await (await runtime.fetch(new Request("https://midgard.leostera.dev/api/workers"))).json() as { workers: Array<{ slug: string }> };
+	const live = listed.workers.map((worker) => worker.slug);
+	expect(live.length).toBe(32);
+	expect(live).toContain(newest);
+	expect(live).not.toContain(slugs[0]);
+	expect(live).toContain(slugs[1]);
+	expect(detachedDomains).toEqual([`${slugs[0]!.replaceAll("_", "-")}.midgard.leostera.dev`]);
+	expect(ctx.storage.sql.exec("SELECT count(*) AS n FROM chunks WHERE slug = ?", slugs[0]).one()).toEqual({ n: 0 });
+
+	// The evicted route is refused at the edge, even though the Container still holds it.
+	const before = requests.length;
+	const gone = await runtime.fetch(new Request(`https://midgard.leostera.dev/run/${slugs[0]}/`));
+	expect(gone.status).toBe(404);
+	expect(await gone.text()).toContain("oldest workers are removed");
+	expect(requests.length).toBe(before);
+	expect(await (await runtime.fetch(new Request(`https://midgard.leostera.dev/run/${newest}/`))).text()).toBe("Hello!");
+	container.running = false;
+});
+
+test("a failed admission never evicts an existing worker", async () => {
+	attachedDomains.clear();
+	detachedDomains.length = 0;
+	const { ctx, container } = runtimeHarness();
+	const runtime = new NativeRuntime(ctx, env);
+	for (let index = 0; index < 32; index++) {
+		const ok = await runtime.fetch(new Request(`https://midgard.leostera.dev/api/deployments/app${index}`, {
+			method: "POST", headers: { "content-type": "application/vnd.midgard.shipment.v1" }, body: new Uint8Array([1]),
+		}));
+		expect(ok.status).toBe(201);
+	}
+	const port = container.getTcpPort(4000);
+	container.getTcpPort = () => ({
+		fetch: async (request: Request) => new URL(request.url).pathname.startsWith("/api/deployments/") &&
+			new URL(request.url).pathname !== "/api/deployments/state"
+			? new Response("rejected\n", { status: 422 })
+			: port.fetch(request),
+	});
+	const rejected = await runtime.fetch(new Request("https://midgard.leostera.dev/api/deployments/broken", {
+		method: "POST", headers: { "content-type": "application/vnd.midgard.shipment.v1" }, body: new Uint8Array([1]),
+	}));
+	expect(rejected.status).toBe(422);
+	expect(ctx.storage.sql.exec("SELECT count(*) AS n FROM shipments WHERE active = 1").one()).toEqual({ n: 32 });
+	expect(detachedDomains).toEqual([]);
+	container.running = false;
 });

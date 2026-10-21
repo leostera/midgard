@@ -283,9 +283,9 @@ export class NativeRuntime extends DurableObject<Env> {
 		try {
 			await this.ensureReady();
 			const sql = this.ctx.storage.sql;
-			if (sql.exec<{ n: number }>("SELECT count(*) AS n FROM shipments WHERE active = 1").one().n >= maxWorkers) {
-				return text("Demo deployment capacity reached", 429);
-			}
+			// A full demo stays open: once the new worker is admitted, the oldest
+			// one is removed to make room (first in, first out).
+			const full = sql.exec<{ n: number }>("SELECT count(*) AS n FROM shipments WHERE active = 1").one().n >= maxWorkers;
 			const bytes = await boundedBody(request);
 			if (!bytes) return text("Shipment exceeds the 24 MB demo limit", 413);
 			route = `${app.slice(0, 23)}_${hex(crypto.getRandomValues(new Uint8Array(8)))}`;
@@ -311,6 +311,7 @@ export class NativeRuntime extends DurableObject<Env> {
 			const hostname = workerHostname(route);
 			await this.attachWorkerDomain(hostname);
 			sql.exec("UPDATE shipments SET digest = ?, domain_attached = 1, active = 1 WHERE slug = ? AND active = 0", result.digest, route);
+			if (full) await this.evictOldest(route);
 			return Response.json({ ...result, path: `https://${hostname}/` }, {
 				status: response.status,
 				headers: { "cache-control": "no-store" },
@@ -326,6 +327,43 @@ export class NativeRuntime extends DurableObject<Env> {
 			throw error;
 		} finally {
 			this.busy = false;
+		}
+	}
+
+	private async evictOldest(keep: string): Promise<void> {
+		const sql = this.ctx.storage.sql;
+		const surplus = sql.exec<{ n: number }>("SELECT count(*) AS n FROM shipments WHERE active = 1").one().n - maxWorkers;
+		if (surplus <= 0) return;
+		const evicted = sql
+			.exec<{ slug: string }>("SELECT slug FROM shipments WHERE active = 1 AND slug != ? ORDER BY rowid LIMIT ?", keep, surplus)
+			.toArray();
+		for (const { slug } of evicted) {
+			this.ctx.storage.transactionSync(() => {
+				sql.exec("DELETE FROM chunks WHERE slug = ?", slug);
+				sql.exec("DELETE FROM shipments WHERE slug = ?", slug);
+			});
+			console.log(JSON.stringify({ event: "worker_evicted", slug }));
+			// The Container keeps the Isolate until its next restore, but calls are
+			// refused at the edge from now on, so the domain is only tidied up.
+			await this.detachWorkerDomain(workerHostname(slug)).catch((error) => {
+				console.warn(JSON.stringify({ event: "domain_detach_failed", slug, error: String(error) }));
+			});
+		}
+	}
+
+	private async detachWorkerDomain(hostname: string): Promise<void> {
+		const api = `https://api.cloudflare.com/client/v4/accounts/${this.env.CLOUDFLARE_ACCOUNT_ID}/workers/domains`;
+		const headers = { authorization: `Bearer ${this.env.CF_DNS_API_TOKEN}` };
+		const query = new URLSearchParams({ zone_name: "leostera.dev", hostname, service: this.env.CLOUDFLARE_WORKER_NAME });
+		const listed = await fetch(`${api}?${query}`, { headers });
+		const result = await listed.json() as { success?: boolean; result?: Array<{ id?: string; hostname?: string }> };
+		if (!listed.ok || result.success !== true || !Array.isArray(result.result)) {
+			throw new Error(`Cloudflare could not list worker domains (HTTP ${listed.status})`);
+		}
+		for (const domain of result.result) {
+			if (domain.hostname !== hostname || typeof domain.id !== "string") continue;
+			const removed = await fetch(`${api}/${encodeURIComponent(domain.id)}`, { method: "DELETE", headers });
+			if (!removed.ok) throw new Error(`Cloudflare could not detach ${hostname} (HTTP ${removed.status})`);
 		}
 	}
 
@@ -380,6 +418,10 @@ export class NativeRuntime extends DurableObject<Env> {
 			return this.deploy(request, url.pathname.slice("/api/deployments/".length));
 		}
 		if (this.busy && (url.pathname === "/" || url.pathname.startsWith("/workers/"))) return text("Inventory is updating", 503);
+		const run = url.pathname.match(/^\/run\/([a-z][a-z0-9_]*_[0-9a-f]{16})(?:\/|$)/);
+		if (run && !this.ctx.storage.sql.exec("SELECT 1 FROM shipments WHERE slug = ? AND active = 1", run[1]).toArray().length) {
+			return text("Worker not found. When the demo is full, the oldest workers are removed to make room.", 404);
+		}
 		await this.ensureReady();
 		const upstream = new Request(`${backend}${url.pathname}${url.search}`, request);
 		upstream.headers.set("host", "127.0.0.1:4000");

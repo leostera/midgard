@@ -21,20 +21,29 @@ install_archives() {
   mix archive.install hex midgard_cli "$version" --force >/dev/null
 }
 
-# The demo rate-limits uploads, and new worker hostnames can take a moment to
-# resolve, so retry the deploy and resolve through a public DNS server.
+# The demo rate-limits uploads, so retry the deploy. Only the Worker URL goes
+# to stdout; progress and errors go to stderr so they can't be mistaken for it.
 deploy() {
   local log="$1"; shift
+  local attempt url
   for attempt in 1 2 3; do
-    if "$@" >"$log" 2>&1; then break; fi
-    if [ "$attempt" = 3 ]; then cat "$log"; return 1; fi
-    echo "  deploy failed (attempt $attempt), retrying in 40s"; sleep 40
+    if "$@" >"$log" 2>&1; then
+      url="$(grep -oE 'https://[a-z0-9-]+\.midgard\.leostera\.dev/' "$log" | head -1 || true)"
+      [ -n "$url" ] && { echo "$url"; return 0; }
+      echo "  deploy succeeded but printed no Worker URL:" >&2
+      sed 's/^/    /' "$log" >&2
+      return 1
+    fi
+    echo "  deploy failed (attempt $attempt):" >&2
+    sed 's/^/    /' "$log" | tail -3 >&2
+    [ "$attempt" = 3 ] && return 1
+    echo "  retrying in 40s" >&2; sleep 40
   done
-  grep -o 'https://[a-z0-9-]*\.midgard\.leostera\.dev/' "$log" | head -1
 }
 
 check_hello() {
-  local url="$1" host ip body
+  local url="$1" host ip body=""
+  [[ "$url" =~ ^https://[a-z0-9-]+\.midgard\.leostera\.dev/$ ]] || { echo "  FAIL not a Worker URL: $url" >&2; return 1; }
   host="$(echo "$url" | sed -E 's|https://([^/]+)/|\1|')"
   for _ in $(seq 1 20); do
     ip="$(dig +short @1.1.1.1 "$host" | grep -E '^[0-9.]+$' | head -1 || true)"
@@ -61,7 +70,8 @@ smoke_elixir() {
     cd hello_worker
     grep -q '"~> 0.3"' mix.exs || { echo "  scaffold does not use Hex 0.3 packages"; exit 1; }
     mix deps.get >/dev/null && mix test >/dev/null
-    check_hello "$(deploy "$work/elixir-deploy.log" mix midgard.deploy)"
+    url="$(deploy "$work/elixir-deploy.log" mix midgard.deploy)" || exit 1
+    check_hello "$url"
   )
 }
 
@@ -88,7 +98,8 @@ pub fn handle_request(request: midgard.Request) -> midgard.Response {
 EOF
     mix packer.pack --project . --gleam --entry hello_worker_gleam \
       --function handle --protocol midgard.bytes.v1 >/dev/null
-    check_hello "$(deploy "$work/gleam-deploy.log" mix midgard.deploy --artifact hello_worker_gleam.midgard)"
+    url="$(deploy "$work/gleam-deploy.log" mix midgard.deploy --artifact hello_worker_gleam.midgard)" || exit 1
+    check_hello "$url"
   )
 }
 
@@ -116,7 +127,8 @@ handle_request(#midgard_request{method = <<"GET">>, path = <<"/">>}) ->
 handle_request(_Request) ->
     #midgard_response{status = 404, body = <<"Not found\n">>}.
 EOF
-    check_hello "$(deploy "$work/erlang-deploy.log" rebar3 midgard deploy)"
+    url="$(deploy "$work/erlang-deploy.log" rebar3 midgard deploy)" || exit 1
+    check_hello "$url"
   )
 }
 

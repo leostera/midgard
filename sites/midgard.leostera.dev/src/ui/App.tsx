@@ -359,7 +359,7 @@ function Limitations() {
         <li><strong>Bleeding-edge toolchain.</strong> Requires OTP 29. Elixir workers also need Elixir <code>main</code> built at the runtime’s pinned revision.</li>
         <li><strong>Public and anonymous.</strong> There are no accounts. Anyone with a worker’s URL can call it, so don’t deploy secrets or private code.</li>
         <li><strong>Immutable deploys.</strong> Every deploy gets a new URL. You can’t update or delete an existing deployment.</li>
-        <li><strong>Small, shared limits.</strong> Up to 32 live workers and 24 MB per upload, with rate limits on uploads and requests. Demos may be cleared at any time.</li>
+        <li><strong>Small, shared limits.</strong> Up to 32 live workers and 24 MB per upload, with rate limits on uploads and requests. When the demo is full, each new deploy replaces the oldest worker, and demos may be cleared at any time.</li>
         <li><strong>Not a full OTP node.</strong> Workers run on libbeam, a separate BEAM runtime, so many libraries won’t run yet. Each shipment is checked before it’s admitted, but this is not a hardened sandbox.</li>
         <li><strong>Feedback welcome.</strong> Found a bug or have an idea? <a href="https://github.com/leostera/midgard/issues">Open an issue on GitHub</a>.</li>
       </ul>

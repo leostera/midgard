@@ -135,7 +135,7 @@ rebar3 midgard deploy
 - **Bleeding-edge toolchain.** Requires OTP 29. Elixir workers also need Elixir `main` built at the runtime's pinned revision; Packer rejects other Elixir builds before uploading.
 - **Public and anonymous.** There are no accounts. Anyone with a worker's URL can call it, so don't deploy secrets or private code.
 - **Immutable deploys.** Every deploy gets a new URL. You can't update or delete an existing deployment.
-- **Small, shared limits.** Up to 32 live workers and 24 MB per upload, with rate limits on uploads and requests. Demos may be cleared at any time.
+- **Small, shared limits.** Up to 32 live workers and 24 MB per upload, with rate limits on uploads and requests. When the demo is full, each new deploy replaces the oldest worker, and demos may be cleared at any time.
 - **Not a full OTP node.** libbeam is a separate BEAM runtime, so many libraries won't run yet. Each shipment is checked before it's admitted, but this is not a hardened sandbox.
 - **Trusted builds only.** Compilers, dependencies, and macros run on your machine with your privileges.
 
