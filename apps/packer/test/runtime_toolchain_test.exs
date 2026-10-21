@@ -12,6 +12,10 @@ defmodule Packer.RuntimeToolchainTest do
 
     assert :ok = RuntimeToolchain.validate_elixir(pinned)
     assert :ok = RuntimeToolchain.validate_elixir(%{pinned | revision: ""})
+    # A `make install` from a Git checkout reports the abbreviated SHA.
+    assert :ok = RuntimeToolchain.validate_elixir(%{pinned | revision: "13299af"})
+    assert :ok = RuntimeToolchain.validate_elixir(%{pinned | revision: "13299af2b91a"})
+    assert {:error, _} = RuntimeToolchain.validate_elixir(%{pinned | revision: "13299"})
   end
 
   test "rejects a different Elixir source revision before packaging" do
