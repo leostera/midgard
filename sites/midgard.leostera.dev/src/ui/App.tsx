@@ -98,6 +98,7 @@ function Header() {
       </a>
       <nav aria-label="Main navigation">
         <a className="workers-link" href="/workers">Public demos</a>
+        <a className="github-link" href="/login">Sign in</a>
         <a className="github-link" href="https://github.com/leostera/midgard">GitHub</a>
         <a className="nav-cta" href="/#deploy">Get started</a>
       </nav>
@@ -488,11 +489,42 @@ function WorkerPage({ slug }: { slug: string }) {
   );
 }
 
+function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setError("");
+    try {
+      const response = await fetch(sent ? "/api/login/verify" : "/api/login/start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(sent ? { email, code, client: "web" } : { email }) });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error === "invalid_code" ? "That code is incorrect or expired. Try again." : "We couldn't complete sign-in. Please try again.");
+      if (!sent) setSent(true); else window.location.assign("/dashboard");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Something went wrong."); }
+    finally { setBusy(false); }
+  }
+  return <main className="page-main auth-page"><section className="auth-card"><h1>{sent ? "Check your email" : "Sign in to Midgard"}</h1><p>{sent ? `Enter the six-digit code sent to ${email}.` : "We'll email you a one-time sign-in code."}</p><form onSubmit={submit}>{!sent ? <label>Email<input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></label> : <label>Sign-in code<input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={code} onChange={(e) => setCode(e.target.value)} /></label>}{error && <p role="alert" className="auth-error">{error}</p>}<button className="nav-cta" disabled={busy}>{busy ? "Please wait…" : sent ? "Verify and sign in" : "Email me a code"}</button></form>{sent && <button className="auth-back" onClick={() => { setSent(false); setCode(""); }}>Use a different email</button>}</section></main>;
+}
+
+function DashboardPage() {
+  const [email, setEmail] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+  useEffect(() => { void fetch("/api/me").then(async (r) => { if (!r.ok) throw new Error(); const data = await r.json() as { email: string }; setEmail(data.email); }).catch(() => setError(true)); }, []);
+  async function logout() { await fetch("/api/logout", { method: "POST" }); window.location.assign("/"); }
+  if (error) return <main className="page-main"><div className="empty-state"><h1>Sign in required</h1><a href="/login">Sign in to view your dashboard</a></div></main>;
+  if (!email) return <main className="page-main"><p>Loading dashboard…</p></main>;
+  return <main className="page-main"><div className="page-heading"><div><h1>Your workers</h1><p>Signed in as {email}</p></div><button onClick={logout}>Sign out</button></div><section className="empty-state"><h2>No workers yet</h2><p>Deploy a worker from the Midgard CLI while signed in to see it here.</p><a href="/#deploy">Get started</a></section></main>;
+}
+
 export function App() {
   const pathname = window.location.pathname;
   const worker = pathname.match(/^\/workers\/([a-z][a-z0-9_]*_[0-9a-f]{16})$/);
   let page = <Landing />;
   if (pathname === "/workers") page = <InventoryPage />;
+  else if (pathname === "/login") page = <LoginPage />;
+  else if (pathname === "/dashboard") page = <DashboardPage />;
   else if (worker) page = <WorkerPage slug={worker[1]} />;
   else if (pathname !== "/") page = <main className="page-main"><div className="empty-state"><h1>Page not found</h1><a href="/">Return to Midgard</a></div></main>;
   return <div className="site"><Header />{page}<Footer /></div>;

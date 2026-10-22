@@ -1,7 +1,7 @@
 import { expect, mock, test } from "bun:test";
 import { Database } from "bun:sqlite";
 
-const state = { calls: 0, assets: [] as string[], upstream: [] as string[], limited: false, buildsLimited: false };
+const state = { calls: 0, assets: [] as string[], upstream: [] as string[], limited: false, buildsLimited: false, loginLimited: false, accountCalls: [] as string[] };
 const domainRequests: Array<{ url: string; body: Record<string, unknown> }> = [];
 const attachedDomains = new Set<string>();
 const detachedDomains: string[] = [];
@@ -38,6 +38,18 @@ mock.module("cloudflare:workers", () => ({
 		constructor(ctx: unknown, env: unknown) { this.ctx = ctx; this.env = env; }
 	},
 	exports: {
+		Account: {
+			getByName(name: string) {
+				return { fetch: async (request: Request) => {
+					state.accountCalls.push(`${name}:${new URL(request.url).pathname}`);
+					const path = new URL(request.url).pathname;
+					if (path === "/start") return Response.json({ ok: true });
+					if (path === "/verify") return Response.json({ email: "joe@example.com", token: "b".repeat(64), expires: Date.now() + 1000 });
+					if (path === "/auth") return Response.json({ email: "joe@example.com" });
+					return new Response("", { status: 404 });
+				} };
+			},
+		},
 		NativeRuntime: {
 			getByName(name: string) {
 				expect(name).toBe("platform");
@@ -50,7 +62,7 @@ mock.module("cloudflare:workers", () => ({
 		},
 	},
 }));
-const { default: worker, NativeRuntime } = await import("../src/index.ts");
+const { default: worker, NativeRuntime, Account } = await import("../src/index.ts");
 const env = {
 	ASSETS: { fetch: async (request: Request) => {
 		state.assets.push(new URL(request.url).pathname);
@@ -58,6 +70,7 @@ const env = {
 	} },
 	HTTP_RATE: { limit: async () => ({ success: !state.limited }) },
 	DEPLOY_RATE: { limit: async () => ({ success: !state.buildsLimited }) },
+	LOGIN_RATE: { limit: async () => ({ success: !state.loginLimited }) },
 	CLOUDFLARE_ACCOUNT_ID: "test-account",
 	CF_DNS_API_TOKEN: "test-token",
 	CLOUDFLARE_WORKER_NAME: "midgard-leostera-dev",
@@ -125,15 +138,51 @@ function runtimeHarness() {
 	return { ctx, container, requests, admitted, sql, starts: () => starts, destroys: () => destroys, timeouts: () => timeouts };
 }
 
+test("email login endpoints create a cookie or CLI token without exposing account state", async () => {
+	state.accountCalls = [];
+	const start = await worker.fetch(visit("/api/login/start", "POST", { "content-type": "application/json" }), env);
+	expect(start.status).toBe(400);
+	const sent = await worker.fetch(new Request("https://midgard.leostera.dev/api/login/start", { method: "POST", headers: { "cf-connecting-ip": "192.0.2.1", "content-type": "application/json" }, body: JSON.stringify({ email: "joe@example.com" }) }), env);
+	expect(sent.status).toBe(200);
+	const web = await worker.fetch(new Request("https://midgard.leostera.dev/api/login/verify", { method: "POST", headers: { "cf-connecting-ip": "192.0.2.1", "content-type": "application/json" }, body: JSON.stringify({ email: "joe@example.com", code: "123456", client: "web" }) }), env);
+	expect(web.headers.get("set-cookie")).toContain("__Host-midgard_session=");
+	const cookie = web.headers.get("set-cookie")!.split(";")[0]!;
+	const me = await worker.fetch(new Request("https://midgard.leostera.dev/api/me", { headers: { "cf-connecting-ip": "192.0.2.1", cookie } }), env);
+	expect((await me.json()).email).toBe("joe@example.com");
+	const cli = await worker.fetch(new Request("https://midgard.leostera.dev/api/login/verify", { method: "POST", headers: { "cf-connecting-ip": "192.0.2.1", "content-type": "application/json" }, body: JSON.stringify({ email: "joe@example.com", code: "123456", client: "cli" }) }), env);
+	expect((await cli.json()).token).toMatch(/^[a-f0-9]{64}\.[a-f0-9]{64}$/);
+});
+
+test("Account DO issues one-time codes, limits retries, and stores only revocable session hashes", async () => {
+	const { ctx } = runtimeHarness();
+	let mailed = "";
+	const account = new Account(ctx, { ...env, EMAIL: { send: async (message: { text: string }) => { mailed = message.text; } } } as unknown as Env);
+	const call = (path: string, body: unknown) => account.fetch(new Request(`https://account${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+	expect((await call("/start", { email: "User@example.com" })).status).toBe(200);
+	expect(mailed).toContain("sign-in code");
+	const code = mailed.match(/code is (\d{6})/)?.[1];
+	expect(code).toBeDefined();
+	for (let i = 0; i < 4; i++) expect((await call("/verify", { code: "000000", client: "web" })).status).toBe(401);
+	const verified = await call("/verify", { code, client: "web" });
+	expect(verified.status).toBe(200);
+	const { token, email } = await verified.json() as { token: string; email: string };
+	expect(email).toBe("user@example.com");
+	const rows = ctx.storage.sql.exec("SELECT hash FROM sessions").toArray() as Array<{ hash: string }>;
+	expect(rows[0]?.hash).not.toBe(token);
+	expect((await call("/auth", { token })).status).toBe(200);
+	expect((await call("/auth", { token, revoke: true })).status).toBe(200);
+	expect((await call("/auth", { token })).status).toBe(401);
+});
+
 test("landing, dashboard, worker detail and assets are served by the Worker asset binding", async () => {
 	state.calls = 0;
 	state.assets = [];
-	for (const path of ["/", "/workers", "/workers/hello_abcd1234567890ab", "/assets/app.css", "/assets/favicon.svg"]) {
+	for (const path of ["/", "/login", "/dashboard", "/workers", "/workers/hello_abcd1234567890ab", "/assets/app.css", "/assets/favicon.svg"]) {
 		const response = await worker.fetch(visit(path), env);
 		expect(response.status).toBe(200);
 		expect(response.headers.get("cache-control")).toBe(path.startsWith("/assets/") ? "public, max-age=31536000, immutable" : "no-store");
 	}
-	expect(state.assets).toEqual(["/", "/", "/", "/assets/app.css", "/assets/favicon.svg"]);
+	expect(state.assets).toEqual(["/", "/", "/", "/", "/", "/assets/app.css", "/assets/favicon.svg"]);
 	expect((await worker.fetch(visit("/api/deployments/ready"), env)).status).toBe(204);
 	expect(state.calls).toBe(1);
 });

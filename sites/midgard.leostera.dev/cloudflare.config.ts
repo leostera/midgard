@@ -32,9 +32,12 @@ export default defineConfig({
 			CLOUDFLARE_WORKER_NAME: bindings.text("midgard-leostera-dev"),
 			HTTP_RATE: bindings.rateLimit({ namespace: "1003", simple: { limit: 120, period: 60 } }),
 			DEPLOY_RATE: bindings.rateLimit({ namespace: "1004", simple: { limit: 2, period: 60 } }),
+			LOGIN_RATE: bindings.rateLimit({ namespace: "1005", simple: { limit: 5, period: 60 } }),
+			EMAIL: bindings.sendEmail({ allowedSenderAddresses: ["login@midgard.leostera.dev"] }),
 		},
 		exports: {
 			NativeRuntime: exports.durableObject({ storage: "sqlite", container: platform }),
+			Account: exports.durableObject({ storage: "sqlite" }),
 		},
 	},
 });

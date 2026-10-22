@@ -464,6 +464,87 @@ export class NativeRuntime extends DurableObject<Env> {
 	}
 }
 
+type EmailBinding = { send(message: { from: string; to: string; subject: string; text: string; html: string }): Promise<unknown> };
+type AccountEnv = Env & { EMAIL: EmailBinding };
+
+async function sha256(value: string): Promise<string> {
+	return hex(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))));
+}
+
+function json(data: unknown, status = 200, headers: HeadersInit = {}): Response {
+	return Response.json(data, { status, headers: { "cache-control": "no-store", ...Object.fromEntries(new Headers(headers)) } });
+}
+
+// Per-account state is isolated by deterministic email hash. Only code and
+// session hashes are stored; raw credentials are returned once to the client.
+export class Account extends DurableObject<AccountEnv> {
+	constructor(ctx: DurableObjectState, env: AccountEnv) {
+		super(ctx, env);
+		ctx.blockConcurrencyWhile(async () => {
+			ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS account (email TEXT NOT NULL)");
+			ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS login_code (hash TEXT NOT NULL, expires INTEGER NOT NULL, attempts INTEGER NOT NULL, sent_at INTEGER NOT NULL)");
+			ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS sessions (hash TEXT PRIMARY KEY, expires INTEGER NOT NULL, client TEXT NOT NULL)");
+		});
+	}
+
+	async fetch(request: Request): Promise<Response> {
+		const url = new URL(request.url);
+		const sql = this.ctx.storage.sql;
+		if (request.method === "POST" && url.pathname === "/start") {
+			const { email } = await request.json() as { email?: string };
+			const normalized = email?.trim().toLowerCase();
+			if (!normalized || normalized.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) return json({ error: "invalid_email" }, 400);
+			const now = Date.now();
+			const previous = sql.exec<{ sent_at: number }>("SELECT sent_at FROM login_code").toArray()[0];
+			if (previous && now - previous.sent_at < 60_000) return json({ error: "try_later" }, 429);
+			const code = String(crypto.getRandomValues(new Uint32Array(1))[0]! % 1_000_000).padStart(6, "0");
+			sql.exec("DELETE FROM login_code");
+			sql.exec("INSERT INTO login_code (hash, expires, attempts, sent_at) VALUES (?, ?, 0, ?)", await sha256(code), now + 600_000, now);
+			sql.exec("DELETE FROM account");
+			sql.exec("INSERT INTO account (email) VALUES (?)", normalized);
+			try {
+				await this.env.EMAIL.send({
+					from: "login@midgard.leostera.dev", to: normalized, subject: "Your Midgard sign-in code",
+					text: `Your Midgard sign-in code is ${code}. It expires in 10 minutes. If you did not request this, you can ignore this email.`,
+					html: `<p>Your Midgard sign-in code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:0.2em">${code}</p><p>It expires in 10 minutes. If you did not request this, you can ignore this email.</p>`,
+				});
+			} catch (error) {
+				sql.exec("DELETE FROM login_code");
+				console.error("login_email_failed", String(error));
+				return json({ error: "email_unavailable" }, 503);
+			}
+			return json({ ok: true });
+		}
+		if (request.method === "POST" && url.pathname === "/verify") {
+			const { code, client } = await request.json() as { code?: string; client?: string };
+			const saved = sql.exec<{ hash: string; expires: number; attempts: number }>("SELECT hash, expires, attempts FROM login_code").toArray()[0];
+			if (!saved || saved.expires < Date.now() || saved.attempts >= 5 || !/^\d{6}$/.test(code ?? "")) return json({ error: "invalid_code" }, 401);
+			if (await sha256(code!) !== saved.hash) {
+				sql.exec("UPDATE login_code SET attempts = attempts + 1");
+				return json({ error: "invalid_code" }, 401);
+			}
+			const account = sql.exec<{ email: string }>("SELECT email FROM account").toArray()[0];
+			if (!account) return json({ error: "invalid_code" }, 401);
+			sql.exec("DELETE FROM login_code");
+			const secret = hex(crypto.getRandomValues(new Uint8Array(32)));
+			const expiry = Date.now() + (client === "cli" ? 90 : 30) * 86_400_000;
+			sql.exec("INSERT INTO sessions (hash, expires, client) VALUES (?, ?, ?)", await sha256(secret), expiry, client === "cli" ? "cli" : "web");
+			return json({ email: account.email, token: secret, expires: expiry });
+		}
+		if (request.method === "POST" && url.pathname === "/auth") {
+			const { token, revoke } = await request.json() as { token?: string; revoke?: boolean };
+			if (!token || !/^[a-f0-9]{64}$/.test(token)) return json({ error: "unauthorized" }, 401);
+			const hash = await sha256(token);
+			const saved = sql.exec<{ expires: number }>("SELECT expires FROM sessions WHERE hash = ?", hash).toArray()[0];
+			if (!saved || saved.expires < Date.now()) return json({ error: "unauthorized" }, 401);
+			if (revoke) { sql.exec("DELETE FROM sessions WHERE hash = ?", hash); return json({ ok: true }); }
+			const account = sql.exec<{ email: string }>("SELECT email FROM account").toArray()[0];
+			return account ? json({ email: account.email, expires: saved.expires }) : json({ error: "unauthorized" }, 401);
+		}
+		return json({ error: "not_found" }, 404);
+	}
+}
+
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
 		const url = new URL(request.url);
@@ -474,17 +555,64 @@ export default {
 		const isUpload = mainHost && request.method === "POST" && app !== null && appName.test(app) && !url.search;
 		const isReady = mainHost && request.method === "GET" && url.pathname === "/api/deployments/ready" && !url.search;
 		const isFrontend = mainHost && request.method === "GET" &&
-			(url.pathname === "/" || url.pathname === "/workers" || /^\/workers\/[a-z][a-z0-9_]*_[0-9a-f]{16}$/.test(url.pathname));
+			(url.pathname === "/" || url.pathname === "/login" || url.pathname === "/dashboard" || url.pathname === "/workers" || /^\/workers\/[a-z][a-z0-9_]*_[0-9a-f]{16}$/.test(url.pathname));
 		const isAsset = mainHost && request.method === "GET" && url.pathname.startsWith("/assets/");
 		const isWorkerRead = mainHost && request.method === "GET" && /^\/api\/workers(?:\/[a-z][a-z0-9_]*_[0-9a-f]{16})?$/.test(url.pathname) && !url.search;
+		const isAuth = mainHost && ["/api/login/start", "/api/login/verify", "/api/logout", "/api/me"].includes(url.pathname);
 		const isCall = isWorkerHost && ["GET", "POST", "PUT", "DELETE", "PATCH"].includes(request.method);
-		if ((!mainHost && !isWorkerHost) || (!isUpload && !isReady && !isWorkerRead && !isCall && !isFrontend && !isAsset)) {
+		if ((!mainHost && !isWorkerHost) || (!isUpload && !isReady && !isWorkerRead && !isAuth && !isCall && !isFrontend && !isAsset)) {
 			return text("Not found", 404);
 		}
 		const ip = request.headers.get("cf-connecting-ip");
 		if (!ip) return text("Forbidden", 403);
 		const { success } = await env.HTTP_RATE.limit({ key: ip });
 		if (!success) return text("Too many requests", 429);
+		if (isAuth) {
+			const requestOrigin = request.headers.get("origin");
+			if (requestOrigin && requestOrigin !== origin) return json({ error: "forbidden" }, 403);
+			if (request.method !== "POST" && url.pathname !== "/api/me") return text("Not found", 404);
+			if (url.pathname === "/api/login/start") {
+				const limit = await env.LOGIN_RATE.limit({ key: ip });
+				if (!limit.success) return json({ error: "try_later" }, 429);
+				try {
+					const data = await request.json() as { email?: string };
+					const key = await sha256(data.email?.trim().toLowerCase() ?? "");
+					return await self.Account.getByName(key).fetch(new Request("https://account/start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data) }));
+				} catch { return json({ error: "invalid_request" }, 400); }
+			}
+			if (url.pathname === "/api/login/verify") {
+				try {
+					const data = await request.json() as { email?: string; code?: string; client?: string };
+					const email = data.email?.trim().toLowerCase() ?? "";
+					if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !["web", "cli"].includes(data.client ?? "")) return json({ error: "invalid_request" }, 400);
+					const key = await sha256(email);
+					const result = await self.Account.getByName(key).fetch(new Request("https://account/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data) }));
+					if (!result.ok) return result;
+					const payload = await result.json() as { email: string; token: string; expires: number };
+					const headers = new Headers({ "cache-control": "no-store" });
+					if (data.client === "cli") return json({ ...payload, token: `${key}.${payload.token}` });
+					headers.set("set-cookie", `__Host-midgard_session=${key}.${payload.token}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=2592000`);
+					return json({ email: payload.email }, 200, headers);
+				} catch { return json({ error: "invalid_request" }, 400); }
+			}
+			const authorization = request.headers.get("authorization")?.match(/^Bearer ([a-f0-9]{64}(?:\.[a-f0-9]{64})?)$/)?.[1];
+			const cookie = request.headers.get("cookie")?.match(/(?:^|;\s*)__Host-midgard_session=([a-f0-9]{64})\.([a-f0-9]{64})(?:;|$)/);
+			const token = authorization ? null : cookie?.[2];
+			const key = authorization ? "" : cookie?.[1];
+			let accountKey = key;
+			let secret = token;
+			if (authorization) {
+				const parts = authorization.split(".");
+				if (parts.length !== 2 || !/^[a-f0-9]{64}$/.test(parts[0]!) || !/^[a-f0-9]{64}$/.test(parts[1]!)) return json({ error: "unauthorized" }, 401);
+				[accountKey, secret] = parts;
+			}
+			if (url.pathname === "/api/logout") {
+				if (accountKey && secret) await self.Account.getByName(accountKey).fetch(new Request("https://account/auth", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: secret, revoke: true }) }));
+				return new Response(null, { status: 204, headers: { "set-cookie": "__Host-midgard_session=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0", "cache-control": "no-store" } });
+			}
+			if (!accountKey || !secret) return json({ error: "unauthorized" }, 401);
+			return self.Account.getByName(accountKey).fetch(new Request("https://account/auth", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: secret }) }));
+		}
 		if (isUpload) {
 			const build = await env.DEPLOY_RATE.limit({ key: ip });
 			if (!build.success) return text("Too many deployments", 429);
