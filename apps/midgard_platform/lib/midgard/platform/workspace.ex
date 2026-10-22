@@ -19,6 +19,9 @@ defmodule Midgard.Platform.Workspace do
   def finish_deploy(slug, result), do: GenServer.call(__MODULE__, {:finish_deploy, slug, result})
   def record_invocation(slug), do: GenServer.call(__MODULE__, {:record_invocation, slug})
 
+  @doc "Forgets an uploaded worker that is not deploying; returns its live handle."
+  def remove(slug), do: GenServer.call(__MODULE__, {:remove, slug})
+
   def root, do: Application.fetch_env!(:midgard_platform, :workspace)
   def valid_slug?(slug), do: is_binary(slug) and Regex.match?(@slug, slug)
 
@@ -121,6 +124,23 @@ defmodule Midgard.Platform.Workspace do
           _ ->
             {:reply, {:error, :cannot_create_worker}, state}
         end
+    end
+  end
+
+  def handle_call({:remove, slug}, _from, state) do
+    case Map.fetch(state.workers, slug) do
+      {:ok, %{origin: :cli, busy: false} = item} ->
+        File.rm_rf(Path.join([state.root, "workers", slug]))
+        {:reply, {:ok, item.live}, %{state | workers: Map.delete(state.workers, slug)}}
+
+      {:ok, %{busy: true}} ->
+        {:reply, {:error, :already_deploying}, state}
+
+      {:ok, _local} ->
+        {:reply, {:error, :name_owned_by_local_editor}, state}
+
+      :error ->
+        {:reply, {:error, :not_found}, state}
     end
   end
 

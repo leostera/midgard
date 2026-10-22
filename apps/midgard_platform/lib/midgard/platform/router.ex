@@ -66,6 +66,19 @@ defmodule Midgard.Platform.Router do
     upload_shipment(conn, slug)
   end
 
+  # Internal: the edge removes a deleted worker. Only the container gateway may.
+  delete "/api/deployments/:slug" do
+    if internal_gateway?(conn) and Workspace.valid_slug?(slug) do
+      case Publisher.remove(slug) do
+        :ok -> send_resp(conn, 204, "")
+        {:error, :not_found} -> send_resp(conn, 404, "worker not found\n")
+        {:error, reason} -> send_resp(conn, 409, "cannot remove worker: #{inspect(reason)}\n")
+      end
+    else
+      send_resp(conn, 403, "Forbidden\n")
+    end
+  end
+
   get "/api/deployments/state" do
     gateway = System.get_env("MIDGARD_INTERNAL_UPLOAD_KEY")
 
@@ -201,6 +214,14 @@ defmodule Midgard.Platform.Router do
     else
       {:error, :unauthorized}
     end
+  end
+
+  defp internal_gateway?(conn) do
+    gateway = System.get_env("MIDGARD_INTERNAL_UPLOAD_KEY")
+
+    System.get_env("MIDGARD_CONTAINER_HTTP") == "1" and is_binary(gateway) and
+      byte_size(gateway) >= 32 and
+      upload_token?(get_req_header(conn, "x-midgard-internal-upload"), gateway)
   end
 
   defp upload_token?(["Bearer " <> supplied], expected) do

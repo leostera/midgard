@@ -370,6 +370,40 @@ defmodule MidgardPlatformRouterTest do
     assert Workspace.list() == []
   end
 
+  test "the container gateway removes uploaded workers, and nobody else can" do
+    gateway = Base.encode16(:crypto.strong_rand_bytes(32), case: :lower)
+    System.put_env("MIDGARD_CONTAINER_HTTP", "1")
+    System.put_env("MIDGARD_INTERNAL_UPLOAD_KEY", gateway)
+
+    on_exit(fn ->
+      System.delete_env("MIDGARD_CONTAINER_HTTP")
+      System.delete_env("MIDGARD_INTERNAL_UPLOAD_KEY")
+    end)
+
+    remove = fn slug, key ->
+      conn = Plug.Test.conn(:delete, "http://127.0.0.1/api/deployments/" <> slug)
+
+      conn =
+        if key,
+          do: Plug.Conn.put_req_header(conn, "x-midgard-internal-upload", "Bearer " <> key),
+          else: conn
+
+      Router.call(conn, Router.init([])).status
+    end
+
+    assert :ok = Workspace.begin_upload("uploaded_0123456789abcdef")
+    assert remove.("uploaded_0123456789abcdef", gateway) == 409
+    assert {:ok, nil} = Workspace.finish_deploy("uploaded_0123456789abcdef", :failed)
+    assert :ok = Workspace.create("edited")
+
+    assert remove.("uploaded_0123456789abcdef", nil) == 403
+    assert remove.("uploaded_0123456789abcdef", String.duplicate("0", 64)) == 403
+    assert remove.("edited", gateway) == 409
+    assert remove.("missing_0123456789abcdef", gateway) == 404
+    assert remove.("uploaded_0123456789abcdef", gateway) == 204
+    assert Enum.map(Workspace.list(), & &1.slug) == ["edited"]
+  end
+
   test "deployment lock prevents overlapping publishes of the same URL" do
     assert :ok = Workspace.create("single_owner")
     assert :ok = Workspace.begin_deploy("single_owner", "defmodule SingleOwner do end")

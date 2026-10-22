@@ -75,6 +75,18 @@ defmodule Midgard.Platform.Publisher do
     end
   end
 
+  @doc "Stops an uploaded worker's live isolate and deletes its artifact."
+  def remove(slug) do
+    with {:ok, live} <- Workspace.remove(slug) do
+      if live do
+        reclaim(live.id)
+        File.rm_rf(live.artifact)
+      end
+
+      :ok
+    end
+  end
+
   defp uploaded_application(%Shipment{application: slug}, slug), do: :ok
   defp uploaded_application(_, _), do: {:error, "shipment application does not match its URL"}
 
