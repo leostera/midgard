@@ -379,15 +379,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
   }
 }
 
-.auth-page { display: grid; place-items: center; min-height: 55vh; }
-.auth-card { width: min(440px, 100%); padding: 30px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
-.auth-card h1 { margin: 0 0 8px; font-size: 28px; }
-.auth-card form { display: grid; gap: 18px; margin-top: 24px; }
-.auth-card label { display: grid; gap: 8px; font-weight: 600; }
-.auth-card input { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font: 16px var(--display); }
-.auth-card form button { justify-self: start; }
-.auth-error { color: #a12d3a; }
-.auth-back { margin-top: 16px; border: 0; background: transparent; color: var(--accent-ink); cursor: pointer; }
 .rotating-word { display: inline-block; animation: word-in .3s ease-out; }
 @keyframes word-in {
   from { opacity: .3; transform: translateY(.08em); }
