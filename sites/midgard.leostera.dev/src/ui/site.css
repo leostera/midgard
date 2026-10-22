@@ -75,12 +75,23 @@ button, a { -webkit-tap-highlight-color: transparent; }
   font-weight: 500;
   line-height: 1.2;
 }
+/* Dark, like the quickstart terminal: the widget's colors come from these. */
 .race {
+  --line: #48465d;
+  --text: #fff;
+  --muted: #c5c2d3;
+  --surface: #1a1a29;
+  --green: #7ee0b0;
+  --accent: #9a7bf0;
+  --accent-ink: #c9b8ff;
+  --accent-border: #5d4a9e;
+  --accent-soft: #2c2547;
   margin: 0;
   padding: 22px;
-  border: 1px solid var(--line);
+  border: 1px solid #393353;
   border-radius: var(--radius);
-  background: var(--panel);
+  background: #222235;
+  color: var(--text);
 }
 .race-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
 .race-tabs { display: flex; gap: 4px; }
