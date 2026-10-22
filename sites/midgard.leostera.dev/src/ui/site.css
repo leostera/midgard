@@ -75,23 +75,12 @@ button, a { -webkit-tap-highlight-color: transparent; }
   font-weight: 500;
   line-height: 1.2;
 }
-/* Dark, like the quickstart terminal: the widget's colors come from these. */
 .race {
-  --line: #48465d;
-  --text: #fff;
-  --muted: #c5c2d3;
-  --surface: #1a1a29;
-  --green: #7ee0b0;
-  --accent: #9a7bf0;
-  --accent-ink: #c9b8ff;
-  --accent-border: #5d4a9e;
-  --accent-soft: #2c2547;
   margin: 0;
   padding: 22px;
-  border: 1px solid #393353;
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: #222235;
-  color: var(--text);
+  background: var(--panel);
 }
 .race-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
 .race-tabs { display: flex; gap: 4px; }
@@ -120,10 +109,12 @@ button, a { -webkit-tap-highlight-color: transparent; }
   background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--line);
 }
-.race-deploy { background: var(--accent); }
-.race-wait {
-  background: repeating-linear-gradient(-45deg, var(--accent-border), var(--accent-border) 4px, var(--accent-soft) 4px, var(--accent-soft) 8px);
+/* Local prep (the deploy command) is striped; waiting for the new version to
+   answer is solid, so the slower lane is the visibly heavier one. */
+.race-deploy {
+  background: repeating-linear-gradient(-45deg, #b7a3ee, #b7a3ee 4px, var(--accent-soft) 4px, var(--accent-soft) 8px);
 }
+.race-wait { background: var(--accent); }
 .race-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 18px; font-size: 12px; color: var(--muted); }
 .race-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .race-legend i { display: inline-block; width: 14px; height: 8px; border-radius: 2px; }
