@@ -570,7 +570,7 @@ export default {
 		if (isAuth) {
 			const requestOrigin = request.headers.get("origin");
 			if (requestOrigin && requestOrigin !== origin) return json({ error: "forbidden" }, 403);
-			if (request.method !== "POST" && url.pathname !== "/api/me") return text("Not found", 404);
+			if ((url.pathname === "/api/me" && request.method !== "GET") || (url.pathname === "/api/logout" && request.method !== "POST") || (!url.pathname.endsWith("/me") && url.pathname !== "/api/logout" && request.method !== "POST")) return text("Not found", 404);
 			if (url.pathname === "/api/login/start") {
 				const limit = await env.LOGIN_RATE.limit({ key: ip });
 				if (!limit.success) return json({ error: "try_later" }, 429);

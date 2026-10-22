@@ -27,7 +27,7 @@ defmodule Mix.Tasks.Midgard.Deploy do
     endpoint =
       endpoint!(options[:endpoint] || System.get_env("MIDGARD_ENDPOINT") || @default_endpoint)
 
-    token = System.get_env("MIDGARD_DEPLOY_TOKEN")
+    token = System.get_env("MIDGARD_DEPLOY_TOKEN") || saved_token(endpoint)
 
     if is_nil(token) and endpoint.host not in ["localhost", "127.0.0.1", "midgard.leostera.dev"] do
       Mix.raise("Set MIDGARD_DEPLOY_TOKEN before deploying to a custom remote host")
@@ -67,6 +67,15 @@ defmodule Mix.Tasks.Midgard.Deploy do
       Mix.shell().info(call_hint(upload.manifest, route_prefix))
     else
       {:error, reason} -> Mix.raise("Midgard deployment failed: #{inspect(reason)}")
+    end
+  end
+
+  defp saved_token(endpoint) do
+    endpoint_string = URI.to_string(endpoint)
+
+    case Midgard.CLI.Credentials.read() do
+      {:ok, %{endpoint: ^endpoint_string, token: token}} -> token
+      _ -> nil
     end
   end
 
