@@ -24,7 +24,7 @@ export default defineConfig({
 		assets: { notFoundHandling: "single-page-application", runWorkerFirst: true },
 		domains: ["midgard.leostera.dev"],
 		entrypoint,
-		observability: { enabled: true, logs: { enabled: true }, traces: { enabled: true, headSamplingRate: 0.1 } },
+		observability: { enabled: true, headSamplingRate: 0.01, logs: { enabled: true, headSamplingRate: 0.01 }, traces: { enabled: true, headSamplingRate: 0.01 } },
 		env: {
 			ASSETS: bindings.assets(),
 			CLOUDFLARE_ACCOUNT_ID: bindings.text("0f436d2aabf1f872be90b8dd9d5715e6"),
