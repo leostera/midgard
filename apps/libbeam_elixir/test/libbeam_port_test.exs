@@ -2,6 +2,43 @@ defmodule LibbeamPortTest do
   use ExUnit.Case, async: false
   alias Libbeam.{Engine, Isolate, PortProtocol}
 
+  test "Isolate options encode deterministic virtual time explicitly" do
+    assert {:ok, <<0::64, 0::64, 0, 0::64>>} = PortProtocol.create_payload([])
+
+    assert {:ok, <<64::64, 100::64, 3, 946_684_800_000::64>>} =
+             PortProtocol.create_payload(
+               memory_limit_bytes: 64,
+               invocation_work_limit: 100,
+               virtual_time: [epoch_ms: 946_684_800_000, auto_advance: true]
+             )
+
+    assert {:error, _} = PortProtocol.create_payload(virtual_time: [auto_advance: :yes])
+    assert {:error, _} = PortProtocol.create_payload(unknown: true)
+    assert {:ok, <<7::64, 25::64>>} = PortProtocol.advance_time_payload(7, 25)
+    assert {:error, _} = PortProtocol.advance_time_payload(7, -1)
+  end
+
+  @tag :native
+  test "virtual-time advances are routed to the selected Isolate" do
+    source = Path.join(__DIR__, "libbeam/virtual_time_test.erl")
+
+    {:ok, :virtual_time_test, beam} =
+      :compile.file(String.to_charlist(source), [:binary, :deterministic])
+
+    {:ok, engine} = Engine.start_link()
+
+    {:ok, isolate} =
+      Engine.create_isolate(engine,
+        virtual_time: [epoch_ms: 946_684_800_000, auto_advance: false]
+      )
+
+    assert :ok = Isolate.advance_time(isolate, 25)
+    assert :ok = Isolate.load_modules(isolate, [beam])
+    assert {:ok, <<"ok">>} = Isolate.call(isolate, "virtual_time_test", "manual_advance", <<>>)
+    assert :ok = Isolate.stop(isolate)
+    assert :ok = Engine.shutdown(engine)
+  end
+
   test "packet parser rejects malformed messages and oversize inputs" do
     assert {:error, _} = PortProtocol.decode(<<1, 1::64, 1, 1::16, 4::16, "bad">>)
     assert {:error, _} = PortProtocol.decode(<<2, 1::64, 0>>)

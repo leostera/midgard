@@ -24,7 +24,7 @@ namespace {
 using Clock = std::chrono::steady_clock;
 constexpr std::size_t max_frame = 32u * 1024u * 1024u;
 constexpr std::uint8_t version = 1;
-enum Operation : std::uint8_t { hello = 0, create = 1, load = 2, call = 3, stop = 4, shutdown = 5 };
+enum Operation : std::uint8_t { hello = 0, create = 1, load = 2, call = 3, stop = 4, shutdown = 5, advance_time = 6 };
 
 struct Reader {
     std::string_view bytes;
@@ -139,11 +139,13 @@ class Host {
         switch (operation) {
         case hello:
             if (id != 0 || !payload.done()) throw std::runtime_error("invalid handshake");
-            send(0, 0, "libbeam-port-v1");
+            send(0, 0, "libbeam-port-v2");
             break;
         case create: {
             const auto memory = payload.integer(8), work = payload.integer(8);
-            if (!payload.done()) throw std::runtime_error("trailing create payload");
+            const auto flags = payload.integer(1), epoch_ms = payload.integer(8);
+            if (!payload.done() || flags > 3 || ((flags & 2) && !(flags & 1)))
+                throw std::runtime_error("invalid create options");
             if (next_isolate == std::numeric_limits<std::uint64_t>::max()) { bad(id, "isolate IDs exhausted"); break; }
             libbeam::ResourceOverrides limits;
             if (memory) {
@@ -151,6 +153,7 @@ class Host {
                 limits.memory_limit_bytes = static_cast<std::size_t>(memory);
             }
             if (work) limits.invocation_work_limit = work;
+            if (flags & 1) limits.virtual_time = libbeam::VirtualTimeOptions{epoch_ms, (flags & 2) != 0};
             auto result = engine.create_isolate(limits);
             if (auto* error = std::get_if<libbeam::Error>(&result)) { fail(id, *error); break; }
             const auto isolate_id = next_isolate++;
@@ -204,6 +207,18 @@ class Host {
                 entry->second.stopping = true;
                 stops.emplace(id, PendingStop{isolate_id, std::move(std::get<libbeam::Reclamation>(result))});
             }
+            break;
+        }
+        case advance_time: {
+            const auto isolate_id = payload.integer(8), milliseconds = payload.integer(8);
+            if (!payload.done()) throw std::runtime_error("trailing virtual-time payload");
+            auto entry = isolates.find(isolate_id);
+            if (entry == isolates.end() || entry->second.stopping) { bad(id, "unknown or stopped isolate"); break; }
+            if (milliseconds > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+                bad(id, "virtual-time advance is out of range"); break;
+            }
+            if (auto error = entry->second.isolate.advance_time(std::chrono::milliseconds(milliseconds))) fail(id, *error);
+            else send(id, 0, {});
             break;
         }
         case shutdown:

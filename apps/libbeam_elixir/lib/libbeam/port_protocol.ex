@@ -2,7 +2,7 @@ defmodule Libbeam.PortProtocol do
   @moduledoc false
   @version 1
   @max_frame 32 * 1024 * 1024
-  @operations %{create: 1, load: 2, call: 3, stop: 4, shutdown: 5}
+  @operations %{create: 1, load: 2, call: 3, stop: 4, shutdown: 5, advance_time: 6}
 
   def encode(id, operation, payload)
       when is_integer(id) and id in 1..18_446_744_073_709_551_615 and is_binary(payload) do
@@ -26,6 +26,54 @@ defmodule Libbeam.PortProtocol do
     do: {:ok, id, {:error, %Libbeam.Error{code: code, message: message}}}
 
   def decode(_), do: {:error, "invalid Port response"}
+
+  def create_payload(options) when is_list(options) do
+    if Keyword.keyword?(options) and
+         Keyword.keys(options) -- [:memory_limit_bytes, :invocation_work_limit, :virtual_time] ==
+           [] do
+      memory = Keyword.get(options, :memory_limit_bytes, 0)
+      work = Keyword.get(options, :invocation_work_limit, 0)
+
+      with true <- valid_uint64?(memory) and valid_uint64?(work),
+           {:ok, virtual_time} <- parse_virtual_time(Keyword.get(options, :virtual_time)) do
+        {flags, epoch_ms} = virtual_time
+        {:ok, <<memory::64, work::64, flags, epoch_ms::64>>}
+      else
+        _ -> {:error, "invalid Isolate options"}
+      end
+    else
+      {:error, "invalid Isolate options"}
+    end
+  end
+
+  def create_payload(_), do: {:error, "invalid Isolate options"}
+
+  def advance_time_payload(isolate_id, milliseconds)
+      when is_integer(isolate_id) and isolate_id in 1..18_446_744_073_709_551_615 and
+             is_integer(milliseconds) and milliseconds in 0..18_446_744_073_709_551_615,
+      do: {:ok, <<isolate_id::64, milliseconds::64>>}
+
+  def advance_time_payload(_, _), do: {:error, "invalid virtual-time advance"}
+
+  defp parse_virtual_time(nil), do: {:ok, {0, 0}}
+
+  defp parse_virtual_time(options) when is_list(options) do
+    if Keyword.keyword?(options) and Keyword.keys(options) -- [:epoch_ms, :auto_advance] == [] do
+      epoch_ms = Keyword.get(options, :epoch_ms, 0)
+      auto_advance = Keyword.get(options, :auto_advance, false)
+
+      if valid_uint64?(epoch_ms) and is_boolean(auto_advance),
+        do: {:ok, {if(auto_advance, do: 3, else: 1), epoch_ms}},
+        else: {:error, "invalid virtual time options"}
+    else
+      {:error, "invalid virtual time options"}
+    end
+  end
+
+  defp parse_virtual_time(_), do: {:error, "virtual_time must be a keyword list"}
+
+  defp valid_uint64?(value),
+    do: is_integer(value) and value >= 0 and value <= 18_446_744_073_709_551_615
 
   def load_payload(isolate_id, beams, options)
       when is_integer(isolate_id) and isolate_id in 1..18_446_744_073_709_551_615 and

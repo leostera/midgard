@@ -11,20 +11,20 @@ defmodule Libbeam.Engine do
   alias Libbeam.{Error, Isolate, PortProtocol}
 
   @handshake <<1, 0::64, 0>>
-  @handshake_reply <<1, 0::64, 0, "libbeam-port-v1">>
+  @handshake_reply <<1, 0::64, 0, "libbeam-port-v2">>
 
   def start_link(options \\ []) do
     GenServer.start_link(__MODULE__, options, Keyword.take(options, [:name]))
   end
 
-  def create_isolate(engine, options \\ []) do
-    memory = Keyword.get(options, :memory_limit_bytes, 0)
-    work = Keyword.get(options, :invocation_work_limit, 0)
+  def start(options \\ []) do
+    GenServer.start(__MODULE__, options, Keyword.take(options, [:name]))
+  end
 
-    if valid_uint64?(memory) and valid_uint64?(work) do
-      request(engine, :create, <<memory::64, work::64>>, :create)
-    else
-      {:error, Error.exception(code: :invalid_argument, message: "invalid Isolate limits")}
+  def create_isolate(engine, options \\ []) do
+    case PortProtocol.create_payload(options) do
+      {:ok, payload} -> request(engine, :create, payload, :create)
+      {:error, message} -> {:error, Error.exception(code: :invalid_argument, message: message)}
     end
   end
 
@@ -44,6 +44,13 @@ defmodule Libbeam.Engine do
 
   def stop_isolate(%Isolate{engine: engine, id: id}) do
     request(engine, :stop, <<id::64>>, :unit)
+  end
+
+  def advance_time(%Isolate{engine: engine, id: id}, milliseconds) do
+    case PortProtocol.advance_time_payload(id, milliseconds) do
+      {:ok, payload} -> request(engine, :advance_time, payload, :unit)
+      {:error, message} -> {:error, Error.exception(code: :invalid_argument, message: message)}
+    end
   end
 
   def shutdown(engine) do
@@ -157,8 +164,6 @@ defmodule Libbeam.Engine do
   catch
     :exit, _ -> {:error, closed()}
   end
-
-  defp valid_uint64?(n), do: is_integer(n) and n >= 0 and n <= 18_446_744_073_709_551_615
 
   defp closed,
     do: Error.exception(code: :closed, message: "native host closed; Isolate handles are invalid")

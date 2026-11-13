@@ -10,4 +10,7 @@ defmodule Libbeam.Isolate do
     do: Libbeam.Engine.call(isolate, module, function, input)
 
   def stop(isolate), do: Libbeam.Engine.stop_isolate(isolate)
+
+  def advance_time(isolate, milliseconds),
+    do: Libbeam.Engine.advance_time(isolate, milliseconds)
 end
